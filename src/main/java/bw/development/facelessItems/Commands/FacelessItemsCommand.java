@@ -2,6 +2,7 @@ package bw.development.facelessItems.Commands;
 
 import bw.development.facelessItems.FacelessItems;
 import bw.development.facelessItems.Items.CustomItemManager;
+import bw.development.facelessItems.Rarity.RarityManager;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -29,9 +30,14 @@ public class FacelessItemsCommand implements CommandExecutor {
                 return true;
             }
 
+            RarityManager rarityManager = plugin.getRarityManager();
+            rarityManager.loadRarities();
+            sender.sendMessage(ChatColor.GREEN + "¡Rarezas recargadas exitosamente!");
+
             CustomItemManager itemManager = plugin.getCustomItemManager();
             itemManager.loadItems();
             sender.sendMessage(ChatColor.GREEN + "¡Ítems recargados exitosamente!");
+
             return true;
         }
 

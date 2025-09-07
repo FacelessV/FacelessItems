@@ -56,14 +56,14 @@ public class ItemEventListener implements Listener {
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
-        plugin.getLogger().info("Interacción detectada con: " + player.getName());
+        // plugin.getLogger().info("Interacción detectada con: " + player.getName());
 
         ItemStack item = event.getItem();
         if (item == null || !item.hasItemMeta()) return;
 
         CustomItem customItem = plugin.getCustomItemManager().getCustomItemByItemStack(item);
         if (customItem == null) {
-            plugin.getLogger().info("No es un custom item.");
+            // plugin.getLogger().info("No es un custom item.");
             return;
         }
 
