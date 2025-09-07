@@ -1,0 +1,26 @@
+material: DIAMOND_SWORD
+display-name: '&6Espada Eco'
+lore:
+  - '&7Un arma con poderes especiales.'
+enchantments:
+  DAMAGE_ALL: 3
+persistent-data:
+  ecoitem: true
+effects:
+  on_hit:
+    - type: POTION
+      potion-type: POISON
+      duration: 100
+      amplifier: 1
+      target: ENTITY  # ← aplica el veneno al mob
+
+    - type: DAMAGE
+      amount: 3
+      target: ENTITY  # ← daña al mob (no por el evento, sino programáticamente)
+
+  on_use:
+    - type: POTION
+      potion-type: SPEED
+      duration: 200
+      amplifier: 2
+      target: PLAYER  # ← aplica al jugador (opcional, ya es default)
