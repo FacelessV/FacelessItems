@@ -5,6 +5,7 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 
 public abstract class TargetedEffect implements Effect {
 
@@ -27,11 +28,11 @@ public abstract class TargetedEffect implements Effect {
             case PLAYER -> player;
             case ENTITY -> {
                 if (event instanceof EntityDamageByEntityEvent e) {
-                    Entity damaged = e.getEntity();
-                    yield (damaged instanceof LivingEntity living) ? living : null;
+                    yield e.getEntity() instanceof LivingEntity living ? living : null;
+                } else if (event instanceof PlayerInteractEvent) {
+                    yield player; // fallback al jugador
                 }
-                // Fallback: si no hay entidad, devuelve el jugador mismo
-                yield player;
+                yield null;
             }
         };
     }

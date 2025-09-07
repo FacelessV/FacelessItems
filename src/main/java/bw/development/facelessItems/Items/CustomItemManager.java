@@ -103,11 +103,27 @@ public class CustomItemManager {
                     ConfigurationSection effectsSection = config.getConfigurationSection("effects");
 
                     for (String trigger : effectsSection.getKeys(false)) {
-                        ConfigurationSection triggerSection = effectsSection.getConfigurationSection(trigger);
-                        List<Effect> parsedEffects = EffectFactory.parseEffects(triggerSection);
+                        Object raw = effectsSection.get(trigger);
+                        List<Effect> parsedEffects = new ArrayList<>();
 
+                        if (raw instanceof List) {
+                            // Caso actual: lista de efectos
+                            List<Map<?, ?>> list = (List<Map<?, ?>>) raw;
+                            for (Map<?, ?> effectMap : list) {
+                                Effect effect = EffectFactory.createEffect(effectMap);
+                                if (effect != null) {
+                                    parsedEffects.add(effect);
+                                }
+                            }
+                        } else if (raw instanceof ConfigurationSection) {
+                            // Alternativa: soportar sub-secciones
+                            parsedEffects = EffectFactory.parseEffects((ConfigurationSection) raw);
+                        }
+
+                        plugin.getLogger().info("Cargados " + parsedEffects.size() + " efectos para trigger " + trigger + " en item " + key);
                         customItem.setEffectsForTrigger(trigger, parsedEffects);
                     }
+
                 }
 
                 customItems.put(key, customItem);
