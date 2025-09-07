@@ -25,8 +25,18 @@ public class FacelessItems extends JavaPlugin {
 
             getServer().getPluginManager().registerEvents(new ItemEventListener(this), this);
 
-            Objects.requireNonNull(getCommand("giveitem")).setExecutor(new GiveItemCommand(this));
-            Objects.requireNonNull(getCommand("facelessitems")).setExecutor(new FacelessItemsCommand(this));
+            if (getCommand("giveitem") == null) {
+                getLogger().severe("El comando 'giveitem' no está registrado en plugin.yml!");
+            } else {
+                getCommand("giveitem").setExecutor(new GiveItemCommand(this));
+            }
+
+            if (getCommand("facelessitems") == null) {
+                getLogger().severe("El comando 'facelessitems' no está registrado en plugin.yml!");
+            } else {
+                getCommand("facelessitems").setExecutor(new FacelessItemsCommand(this));
+            }
+
 
             getLogger().info("FacelessItems habilitado con " + customItemManager.getItemCount() + " items cargados.");
         } catch (Exception e) {
