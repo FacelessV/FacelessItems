@@ -5,27 +5,26 @@ import org.bukkit.potion.PotionEffectType;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 public class EffectFactory {
 
-    public static List<Effect> parseEffects(String trigger, List<Map<?, ?>> effectList) {
+    // Ahora parsea directamente desde la sección del trigger (ej: effects.on_hit)
+    public static List<Effect> parseEffects(ConfigurationSection triggerSection) {
         List<Effect> effects = new ArrayList<>();
-        if (effectList == null) return effects;
+        if (triggerSection == null) return effects;
 
-        for (Map<?, ?> map : effectList) {
-            if (!(map instanceof Map<?, ?>)) continue;
-
-            // Convierte el map a una ConfigurationSection simulada
-            ConfigurationSection section = new MapConfigurationSection("effect", map);
-            Effect effect = createEffect(section);
-            if (effect != null) {
-                effects.add(effect);
+        for (String key : triggerSection.getKeys(false)) {
+            ConfigurationSection effectSection = triggerSection.getConfigurationSection(key);
+            if (effectSection != null) {
+                Effect effect = createEffect(effectSection);
+                if (effect != null) {
+                    effects.add(effect);
+                }
             }
         }
+
         return effects;
     }
-
 
     public static Effect createEffect(ConfigurationSection section) {
         String type = section.getString("type", "").toUpperCase();
@@ -56,12 +55,10 @@ public class EffectFactory {
                 double amount = section.getDouble("amount", 5.0);
                 yield new HealEffect(amount, target);
             }
-
             case "MESSAGE" -> {
                 String text = section.getString("text", "Mensaje vacío");
                 yield new MessageEffect(text);
             }
-
             default -> null;
         };
     }

@@ -22,7 +22,6 @@ public abstract class TargetedEffect implements Effect {
         }
     }
 
-    // Decide a quién se le aplica el efecto
     protected LivingEntity resolveTarget(Player player, Event event) {
         return switch (target) {
             case PLAYER -> player;
@@ -30,12 +29,13 @@ public abstract class TargetedEffect implements Effect {
                 if (event instanceof EntityDamageByEntityEvent e) {
                     Entity damaged = e.getEntity();
                     yield (damaged instanceof LivingEntity living) ? living : null;
-                } else {
-                    yield null;
                 }
+                // Fallback: si no hay entidad, devuelve el jugador mismo
+                yield player;
             }
         };
     }
+
 
     // Subclases implementan esto para aplicar el efecto real
     protected abstract void applyToTarget(LivingEntity target, Event event);
