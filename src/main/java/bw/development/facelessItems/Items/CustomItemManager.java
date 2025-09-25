@@ -19,6 +19,7 @@ import org.bukkit.persistence.PersistentDataType;
 import java.io.File;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.logging.Level;
 
 public class CustomItemManager {
 
@@ -41,14 +42,21 @@ public class CustomItemManager {
         if (files == null) return;
 
         for (File file : files) {
+            String key = file.getName().replace(".yml", "");
+
             try {
-                String key = file.getName().replace(".yml", "");
                 YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
 
                 String matName = config.getString("material", "STONE").toUpperCase(Locale.ROOT);
-                Material material = Material.valueOf(matName);
+                Material material;
+                try {
+                    material = Material.valueOf(matName);
+                } catch (IllegalArgumentException e) {
+                    plugin.getLogger().warning("Material inválido '" + matName + "' en item " + key + ". Usando STONE.");
+                    material = Material.STONE;
+                }
 
-                String displayName = config.getString("display-name", "Custom Item");
+                String displayName = config.getString("display-name", "Custom Item: " + key);
 
                 List<String> lore = config.getStringList("lore").stream()
                         .map(line -> ChatColor.translateAlternateColorCodes('&', line))
@@ -58,25 +66,25 @@ public class CustomItemManager {
                 ItemMeta meta = itemStack.getItemMeta();
                 if (meta == null) continue;
 
-                // Leer rareza
                 String rarityId = config.getString("rarity", "COMMON").toUpperCase();
                 RarityManager rarityManager = plugin.getRarityManager();
                 Rarity rarity = rarityManager.getRarity(rarityId);
 
-                // Aplicar color de rareza al nombre
+                if (rarity == null) {
+                    plugin.getLogger().warning("Rareza '" + rarityId + "' no encontrada para el ítem " + key + ".");
+                }
+
                 String finalName = rarity != null
                         ? ChatColor.translateAlternateColorCodes('&', rarity.getColor() + ChatColor.stripColor(displayName))
                         : ChatColor.translateAlternateColorCodes('&', displayName);
                 meta.setDisplayName(finalName);
 
-                // Añadir lore de rareza
                 if (rarity != null && rarity.getLoreTag() != null && !rarity.getLoreTag().isEmpty()) {
                     lore.add(0, ChatColor.translateAlternateColorCodes('&', rarity.getLoreTag()));
                 }
 
                 meta.setLore(lore);
 
-                // Aplicar encantamientos desde YAML
                 if (config.isConfigurationSection("enchantments")) {
                     for (String enchKey : config.getConfigurationSection("enchantments").getKeys(false)) {
                         try {
@@ -84,56 +92,57 @@ public class CustomItemManager {
                             int level = config.getInt("enchantments." + enchKey);
                             if (ench != null) {
                                 meta.addEnchant(ench, level, true);
+                            } else {
+                                plugin.getLogger().warning("Encantamiento desconocido: " + enchKey + " en item " + key);
                             }
-                        } catch (Exception ignored) {
-                        }
+                        } catch (Exception ignored) {}
                     }
                 }
 
-                // Marcar con PersistentDataContainer para identificarlo
+                ConfigurationSection propertiesSection = config.getConfigurationSection("properties");
+                if (propertiesSection != null) {
+                    List<String> hideFlags = propertiesSection.getStringList("hide-flags");
+                    if (!hideFlags.isEmpty()) {
+                        plugin.getLogger().info("Ocultando flags para el item " + key + ": " + hideFlags.toString());
+                        for (String flagName : hideFlags) {
+                            try {
+                                ItemFlag flag = ItemFlag.valueOf(flagName.toUpperCase());
+                                meta.addItemFlags(flag);
+                                plugin.getLogger().info("   - Flag " + flag.name() + " oculta con éxito.");
+                            } catch (IllegalArgumentException e) {
+                                plugin.getLogger().warning("Flag desconocida en item " + key + ": " + flagName);
+                            }
+                        }
+                    }
+
+                    if (propertiesSection.getBoolean("unbreakable", false)) {
+                        meta.setUnbreakable(true);
+                    }
+                }
+
                 NamespacedKey idKey = new NamespacedKey(plugin, "item_id");
                 meta.getPersistentDataContainer().set(idKey, PersistentDataType.STRING, key);
-
                 itemStack.setItemMeta(meta);
 
                 CustomItem customItem = new CustomItem(key, itemStack, config);
 
-// Leer sección de efectos del YAML
                 if (config.isConfigurationSection("effects")) {
                     ConfigurationSection effectsSection = config.getConfigurationSection("effects");
-
                     for (String trigger : effectsSection.getKeys(false)) {
                         Object raw = effectsSection.get(trigger);
-                        List<Effect> parsedEffects = new ArrayList<>();
-
-                        if (raw instanceof List) {
-                            // Caso actual: lista de efectos
-                            List<Map<?, ?>> list = (List<Map<?, ?>>) raw;
-                            for (Map<?, ?> effectMap : list) {
-                                Effect effect = EffectFactory.createEffect(effectMap);
-                                if (effect != null) {
-                                    parsedEffects.add(effect);
-                                }
-                            }
-                        } else if (raw instanceof ConfigurationSection) {
-                            // Alternativa: soportar sub-secciones
-                            parsedEffects = EffectFactory.parseEffects((ConfigurationSection) raw);
+                        List<Effect> parsedEffects = EffectFactory.parseTriggerEffects(raw);
+                        if (!parsedEffects.isEmpty()) {
+                            plugin.getLogger().info("Cargados " + parsedEffects.size() + " efectos para trigger " + trigger + " en item " + key);
+                            customItem.setEffectsForTrigger(trigger, parsedEffects);
                         }
-
-                        plugin.getLogger().info("Cargados " + parsedEffects.size() + " efectos para trigger " + trigger + " en item " + key);
-                        customItem.setEffectsForTrigger(trigger, parsedEffects);
                     }
-
                 }
-
                 customItems.put(key, customItem);
 
-
             } catch (Exception e) {
-                plugin.getLogger().warning("Error al cargar item desde " + file.getName() + ": " + e.getMessage());
+                plugin.getLogger().log(Level.SEVERE, "Error al cargar ítem desde " + file.getName() + ": " + e.getMessage(), e);
             }
         }
-
         plugin.getLogger().info("Cargados " + customItems.size() + " ítems personalizados.");
     }
 
@@ -151,15 +160,12 @@ public class CustomItemManager {
 
     public CustomItem getCustomItemByItemStack(ItemStack itemStack) {
         if (itemStack == null || !itemStack.hasItemMeta()) return null;
-
         ItemMeta meta = itemStack.getItemMeta();
         NamespacedKey idKey = new NamespacedKey(plugin, "item_id");
-
         if (meta != null && meta.getPersistentDataContainer().has(idKey, PersistentDataType.STRING)) {
             String key = meta.getPersistentDataContainer().get(idKey, PersistentDataType.STRING);
             return customItems.get(key);
         }
-
         return null;
     }
 }

@@ -1,6 +1,7 @@
 package bw.development.facelessItems.Effects;
 
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 
 public class HealEffect extends TargetedEffect {
@@ -13,9 +14,14 @@ public class HealEffect extends TargetedEffect {
     }
 
     @Override
-    protected void applyToTarget(LivingEntity target, Event event) {
+    protected void applyToTarget(LivingEntity target, Player user, Event event) {
         double maxHealth = target.getMaxHealth();
         double newHealth = Math.min(target.getHealth() + amount, maxHealth);
         target.setHealth(newHealth);
+    }
+
+    @Override
+    public String getType() {
+        return "HEAL";
     }
 }

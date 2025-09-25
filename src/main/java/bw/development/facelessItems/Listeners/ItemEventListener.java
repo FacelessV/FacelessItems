@@ -3,16 +3,21 @@ package bw.development.facelessItems.Listeners;
 import bw.development.facelessItems.FacelessItems;
 import bw.development.facelessItems.Items.CustomItem;
 import bw.development.facelessItems.Effects.Effect;
+import bw.development.facelessItems.Effects.EffectContext;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class ItemEventListener implements Listener {
 
@@ -23,65 +28,93 @@ public class ItemEventListener implements Listener {
     }
 
     /**
-     * Escucha cuando un jugador daña a una entidad (golpea).
-     * Aplica efectos con trigger "on_hit".
+     * Listens when a player damages an entity (hits it).
+     * Applies effects with the "on_hit" trigger.
      */
     @EventHandler
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player player)) return;
 
         ItemStack weapon = player.getInventory().getItemInMainHand();
-        if (weapon == null || !weapon.hasItemMeta()) return;
-        ItemMeta meta = weapon.getItemMeta();
-        if (meta == null) return;
+        if (weapon == null || weapon.getType().isAir()) return;
 
-        // Obtener el CustomItem asociado al ItemStack
+        // Get the CustomItem from the ItemStack.
         CustomItem customItem = plugin.getCustomItemManager().getCustomItemByItemStack(weapon);
         if (customItem == null) return;
 
-        // Obtener los efectos para el trigger "on_hit"
+        // Get the effects for the "on_hit" trigger.
         List<Effect> effects = customItem.getEffects("on_hit");
-        if (effects == null) return;
+        if (effects.isEmpty()) return;
 
-        // Aplicar todos los efectos al jugador y evento actual
+        // Create the context for the effect.
+        Entity target = event.getEntity();
+        EffectContext context = new EffectContext(
+                player,
+                target,
+                event,
+                Collections.singletonMap("damage_amount", event.getDamage())
+        );
+
+        // Apply all effects.
         for (Effect effect : effects) {
-            effect.apply(player, event);
+            effect.apply(context);
         }
     }
 
     /**
-     * Escucha cuando un jugador interactúa (clic derecho, por ejemplo).
-     * Aplica efectos con trigger "on_use".
+     * Listens when a player interacts (right-click, for example).
+     * Applies effects with the "on_use" trigger.
      */
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
-        // plugin.getLogger().info("Interacción detectada con: " + player.getName());
-
         ItemStack item = event.getItem();
-        if (item == null || !item.hasItemMeta()) return;
+
+        if (item == null || item.getType().isAir()) return;
 
         CustomItem customItem = plugin.getCustomItemManager().getCustomItemByItemStack(item);
-        if (customItem == null) {
-            // plugin.getLogger().info("No es un custom item.");
-            return;
-        }
-
-        plugin.getLogger().info("Item personalizado detectado: " + customItem.getKey());
+        if (customItem == null) return;
 
         List<Effect> effects = customItem.getEffects("on_use");
-        if (effects == null) {
-            plugin.getLogger().info("No hay efectos on_use.");
-            return;
-        }
+        if (effects.isEmpty()) return;
 
+        // Create the context for the effect (the target entity is null in this case).
+        EffectContext context = new EffectContext(
+                player,
+                null,
+                event,
+                Collections.emptyMap()
+        );
+
+        // Apply all effects.
         for (Effect effect : effects) {
-            plugin.getLogger().info("Aplicando efecto: " + effect.getClass().getSimpleName());
-            effect.apply(player, null);
+            effect.apply(context);
         }
     }
+    @EventHandler
+    public void onBlockBreak(BlockBreakEvent event) {
+        Player player = event.getPlayer();
+        ItemStack item = player.getInventory().getItemInMainHand();
 
+        CustomItem customItem = plugin.getCustomItemManager().getCustomItemByItemStack(item);
+        if (customItem == null) return;
 
+        List<Effect> effects = customItem.getEffects("on_mine");
+        if (effects.isEmpty()) return;
 
-    // Puedes agregar más métodos para otros triggers, como onConsume, onDrop, etc.
+        // Crear el contexto para el efecto
+        Map<String, Object> data = new HashMap<>();
+        data.put("broken_block", event.getBlock());
+
+        EffectContext context = new EffectContext(
+                player,
+                null,
+                event,
+                data
+        );
+
+        for (Effect effect : effects) {
+            effect.apply(context);
+        }
+    }
 }

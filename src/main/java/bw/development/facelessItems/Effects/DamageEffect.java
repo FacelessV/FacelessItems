@@ -15,8 +15,20 @@ public class DamageEffect extends TargetedEffect {
     }
 
     @Override
-    protected void applyToTarget(LivingEntity target, Event event) {
-        target.damage(damage);
+    protected void applyToTarget(LivingEntity target, Player user, Event event) {
+        // Si el usuario es nulo, usamos el método de daño genérico
+        if (user == null) {
+            target.damage(damage);
+            return;
+        }
+
+        // Si el usuario existe, aseguramos que el daño sea causado por él.
+        // Esto es crucial para que otros plugins puedan detectar quién hizo el daño.
+        target.damage(damage, user);
+    }
+
+    @Override
+    public String getType() {
+        return "DAMAGE";
     }
 }
-
