@@ -7,6 +7,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.Location;
 import org.bukkit.block.BlockFace;
+import org.bukkit.util.Vector;
 
 import java.util.Set;
 import java.util.EnumSet;
@@ -36,34 +37,39 @@ public class BreakBlockEffect implements Effect {
 
         if (player == null || block == null) return;
 
-        // Determinar la dirección de la minería
-        BlockFace face = block.getFace(block); // Obtiene la cara del bloque
-
-        // Iterar en un plano 2D perpendicular a la cara del bloque
         Location center = block.getLocation();
 
-        for (int i = 0; i < layers; i++) {
-            Location currentLayer = center.clone().add(face.getModX() * i, face.getModY() * i, face.getModZ() * i);
+        // Determinar la cara del bloque que el jugador está mirando
+        Vector direction = player.getEyeLocation().getDirection();
+        BlockFace face = BlockFace.SOUTH;
+        if (Math.abs(direction.getX()) > Math.abs(direction.getZ())) {
+            face = (direction.getX() > 0) ? BlockFace.EAST : BlockFace.WEST;
+        } else {
+            face = (direction.getZ() > 0) ? BlockFace.SOUTH : BlockFace.NORTH;
+        }
 
+        // Si el jugador mira hacia arriba o abajo, la cara es vertical
+        if (Math.abs(direction.getY()) > Math.abs(direction.getX()) && Math.abs(direction.getY()) > Math.abs(direction.getZ())) {
+            face = (direction.getY() > 0) ? BlockFace.UP : BlockFace.DOWN;
+        }
+
+        // Iterar para romper los bloques
+        for (int i = 0; i < layers; i++) {
             for (int x = -radius; x <= radius; x++) {
                 for (int y = -radius; y <= radius; y++) {
                     for (int z = -radius; z <= radius; z++) {
-                        Block currentBlock = currentLayer.clone().add(x, y, z).getBlock();
+                        Location blockToBreak = center.clone();
 
-                        // Si la cara es horizontal, no moverse en Y
-                        if (face.getModX() != 0 || face.getModZ() != 0) {
-                            if (currentBlock.getY() != currentLayer.getY()) {
-                                continue;
-                            }
+                        // Si la cara es horizontal
+                        if (face == BlockFace.NORTH || face == BlockFace.SOUTH) {
+                            blockToBreak.add(x, y, i * face.getModZ());
+                        } else if (face == BlockFace.EAST || face == BlockFace.WEST) {
+                            blockToBreak.add(i * face.getModX(), y, z);
+                        } else { // Vertical
+                            blockToBreak.add(x, i * face.getModY(), z);
                         }
 
-                        // Si la cara es vertical, no moverse en X y Z
-                        if (face.getModY() != 0) {
-                            if (currentBlock.getX() != currentLayer.getX() || currentBlock.getZ() != currentLayer.getZ()) {
-                                continue;
-                            }
-                        }
-
+                        Block currentBlock = blockToBreak.getBlock();
                         if (currentBlock.getType().getHardness() <= -1) {
                             continue;
                         }
