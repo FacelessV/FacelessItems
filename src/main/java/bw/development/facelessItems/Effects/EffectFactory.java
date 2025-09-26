@@ -7,6 +7,7 @@ import org.bukkit.Sound;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.EntityType;
 import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.potion.PotionEffectType;
 
 import java.util.*;
@@ -64,7 +65,7 @@ public class EffectFactory {
         @SuppressWarnings("unchecked")
         Map<String, Object> conditionsMap = (Map<String, Object>) rawConditions;
 
-        // Mob conditions
+        // Lógica para target_mobs y not_target_mobs
         for (String key : Arrays.asList("target_mobs", "not_target_mobs")) {
             if (conditionsMap.get(key) instanceof List) {
                 @SuppressWarnings("unchecked")
@@ -81,7 +82,7 @@ public class EffectFactory {
             }
         }
 
-        // Spawn Reason conditions
+        // Lógica para spawn_reason y not_spawn_reason
         for (String key : Arrays.asList("spawn_reason", "not_spawn_reason")) {
             if (conditionsMap.get(key) instanceof List) {
                 @SuppressWarnings("unchecked")
@@ -98,7 +99,7 @@ public class EffectFactory {
             }
         }
 
-        // Block conditions
+        // Lógica para blocks y not_blocks
         for (String key : Arrays.asList("blocks", "not_blocks")) {
             if (conditionsMap.get(key) instanceof List) {
                 @SuppressWarnings("unchecked")
@@ -114,6 +115,24 @@ public class EffectFactory {
                 }
             }
         }
+
+        // Lógica para damage_cause y not_damage_cause
+        for (String key : Arrays.asList("damage_cause", "not_damage_cause")) {
+            if (conditionsMap.get(key) instanceof List) {
+                @SuppressWarnings("unchecked")
+                Set<EntityDamageEvent.DamageCause> causes = ((List<String>) conditionsMap.get(key)).stream()
+                        .map(s -> {
+                            try { return EntityDamageEvent.DamageCause.valueOf(s.toUpperCase()); }
+                            catch (IllegalArgumentException e) { return null; }
+                        })
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet());
+                if (!causes.isEmpty()) {
+                    conditions.add(new DamageCauseCondition(causes, key.startsWith("not_")));
+                }
+            }
+        }
+
         return conditions;
     }
 
