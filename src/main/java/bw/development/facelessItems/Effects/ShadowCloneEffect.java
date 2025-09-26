@@ -1,24 +1,24 @@
 package bw.development.facelessItems.Effects;
 
+import bw.development.facelessItems.Effects.Conditions.Condition;
 import bw.development.facelessItems.FacelessItems;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
-import org.bukkit.event.Event;
 import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.util.Vector;
-import org.bukkit.attribute.Attribute;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-public class ShadowCloneEffect implements Effect {
+// 1. Now extends BaseEffect
+public class ShadowCloneEffect extends BaseEffect {
 
     private static final Set<UUID> activeClones = new HashSet<>();
     private final int duration;
@@ -26,21 +26,25 @@ public class ShadowCloneEffect implements Effect {
     private final Particle particleType;
     private final Sound soundEffect;
 
-    public ShadowCloneEffect(int duration, double range, Particle particleType, Sound soundEffect) {
+    // 2. The constructor now accepts the list of conditions
+    public ShadowCloneEffect(int duration, double range, Particle particleType, Sound soundEffect, List<Condition> conditions) {
+        super(conditions); // 3. Pass conditions to the parent class
         this.duration = duration;
         this.range = range;
         this.particleType = particleType;
         this.soundEffect = soundEffect;
     }
 
+    // 4. Renamed 'apply' to 'applyEffect'
     @Override
-    public void apply(EffectContext context) {
+    protected void applyEffect(EffectContext context) {
         Player player = context.getUser();
         if (player == null) return;
 
+        // --- Your excellent logic remains unchanged ---
         Location cloneLocation = player.getLocation();
 
-        Villager clone = (Villager) player.getWorld().spawn(cloneLocation, Villager.class);
+        Villager clone = player.getWorld().spawn(cloneLocation, Villager.class);
         clone.setAI(true);
         clone.setInvulnerable(false);
         clone.getAttribute(Attribute.MAX_HEALTH).setBaseValue(100.0);

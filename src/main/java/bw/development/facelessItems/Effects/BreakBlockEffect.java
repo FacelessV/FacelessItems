@@ -1,5 +1,6 @@
 package bw.development.facelessItems.Effects;
 
+import bw.development.facelessItems.Effects.Conditions.Condition;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -13,7 +14,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.EnumSet;
 
-public class BreakBlockEffect implements Effect {
+// 1. Ahora extiende BaseEffect
+public class BreakBlockEffect extends BaseEffect {
 
     private static final Set<Material> TOOLS = EnumSet.of(
             Material.WOODEN_PICKAXE, Material.STONE_PICKAXE, Material.IRON_PICKAXE, Material.GOLDEN_PICKAXE, Material.DIAMOND_PICKAXE, Material.NETHERITE_PICKAXE,
@@ -27,18 +29,24 @@ public class BreakBlockEffect implements Effect {
     private final int layers;
     private final List<Material> mineableBlocks;
 
-    public BreakBlockEffect(int radius, int layers, List<Material> mineableBlocks) {
+    // 2. El constructor ahora acepta la lista de condiciones
+    public BreakBlockEffect(int radius, int layers, List<Material> mineableBlocks, List<Condition> conditions) {
+        super(conditions); // 3. Se pasan las condiciones al constructor padre
         this.radius = radius;
         this.layers = layers;
         this.mineableBlocks = mineableBlocks;
     }
 
+    // 4. El método 'apply' se renombra a 'applyEffect'
     @Override
-    public void apply(EffectContext context) {
+    protected void applyEffect(EffectContext context) {
         Player player = context.getUser();
-        Block block = (Block) context.getData().get("broken_block");
 
-        if (player == null || block == null) return;
+        if (!(context.getData().get("broken_block") instanceof Block block)) {
+            return;
+        }
+
+        if (player == null) return;
 
         if (!mineableBlocks.isEmpty() && !mineableBlocks.contains(block.getType())) {
             return;
@@ -72,7 +80,9 @@ public class BreakBlockEffect implements Effect {
                         }
 
                         Block currentBlock = blockToBreak.getBlock();
-                        if (currentBlock.getType().getHardness() <= -1) {
+
+                        // Usamos la comprobación moderna y más segura
+                        if (currentBlock.getType().getHardness() < 0 || currentBlock.getType() == Material.AIR) {
                             continue;
                         }
 

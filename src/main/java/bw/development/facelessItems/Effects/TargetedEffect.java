@@ -1,20 +1,26 @@
 package bw.development.facelessItems.Effects;
 
+import bw.development.facelessItems.Effects.Conditions.Condition; // Importar
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.Entity; // Importación necesaria
+import org.bukkit.entity.Entity;
 import org.bukkit.event.Event;
+import java.util.List; // Importar
 
-public abstract class TargetedEffect implements Effect {
+// 1. Extiende BaseEffect en lugar de implementar Effect
+public abstract class TargetedEffect extends BaseEffect {
 
     protected final EffectTarget targetType;
 
-    public TargetedEffect(EffectTarget targetType) {
+    // 2. El constructor ahora recibe y pasa las condiciones
+    public TargetedEffect(EffectTarget targetType, List<Condition> conditions) {
+        super(conditions); // Se las pasa al padre (BaseEffect)
         this.targetType = targetType;
     }
 
+    // 3. Renombramos 'apply' a 'applyEffect' para que BaseEffect lo llame
     @Override
-    public void apply(EffectContext context) {
+    protected void applyEffect(EffectContext context) {
         LivingEntity finalTarget = switch (targetType) {
             case PLAYER -> context.getUser();
             case ENTITY -> {
@@ -24,14 +30,15 @@ public abstract class TargetedEffect implements Effect {
                 yield null;
             }
             case LIVING_ENTITY_IN_SIGHT -> {
-                // Obtenemos la entidad que el jugador está mirando
                 Entity entity = context.getUser().getTargetEntity(50, false);
-
-                // Verificamos si la entidad es una LivingEntity antes de usarla
                 if (entity instanceof LivingEntity living) {
+                    // Prevenir que el efecto se aplique a uno mismo
+                    if (living.equals(context.getUser())) {
+                        yield null;
+                    }
                     yield living;
                 }
-                yield null; // Devolvemos null si el objetivo no es válido
+                yield null;
             }
         };
 
@@ -40,8 +47,10 @@ public abstract class TargetedEffect implements Effect {
         }
     }
 
+    // El resto de la clase permanece exactamente igual
     protected abstract void applyToTarget(LivingEntity target, Player user, Event event);
 
+    // getType() también permanece igual
     @Override
     public abstract String getType();
 }

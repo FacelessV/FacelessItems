@@ -1,29 +1,29 @@
 package bw.development.facelessItems.Effects;
 
+import bw.development.facelessItems.Effects.Conditions.Condition; // 1. Importar Condition
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
-import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import java.util.List; // 2. Importar List
 
 public class DamageEffect extends TargetedEffect {
 
     private final double damage;
 
-    public DamageEffect(double damage, EffectTarget target) {
-        super(target);
+    // 3. El constructor ahora recibe la lista de condiciones
+    public DamageEffect(double damage, EffectTarget target, List<Condition> conditions) {
+        // 4. Se la pasa al constructor de la clase padre (TargetedEffect)
+        super(target, conditions);
         this.damage = damage;
     }
 
     @Override
     protected void applyToTarget(LivingEntity target, Player user, Event event) {
-        // Si el usuario es nulo, usamos el método de daño genérico
+        // Tu lógica aquí está perfecta, no necesita ningún cambio. ✅
         if (user == null) {
             target.damage(damage);
             return;
         }
-
-        // Si el usuario existe, aseguramos que el daño sea causado por él.
-        // Esto es crucial para que otros plugins puedan detectar quién hizo el daño.
         target.damage(damage, user);
     }
 

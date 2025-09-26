@@ -1,5 +1,7 @@
 package bw.development.facelessItems.Effects;
 
+import bw.development.facelessItems.Effects.Conditions.Condition;
+import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.entity.Entity;
@@ -7,20 +9,22 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.util.Vector;
-import org.bukkit.Location;
 
+import java.util.ArrayList;
 import java.util.List;
 
+// 1. Now extends TargetedEffect (which extends BaseEffect)
 public class ChainLightningEffect extends TargetedEffect {
 
     private final int chainCount;
     private final double damage;
     private final double range;
     private final Particle particleType;
-    private final Sound soundEffect; // <-- Nuevo campo
+    private final Sound soundEffect;
 
-    public ChainLightningEffect(int chainCount, double damage, double range, Particle particleType, Sound soundEffect, EffectTarget target) {
-        super(target);
+    // 2. The constructor now accepts the list of conditions
+    public ChainLightningEffect(int chainCount, double damage, double range, Particle particleType, Sound soundEffect, EffectTarget target, List<Condition> conditions) {
+        super(target, conditions); // 3. Pass conditions to the parent class
         this.chainCount = chainCount;
         this.damage = damage;
         this.range = range;
@@ -30,34 +34,39 @@ public class ChainLightningEffect extends TargetedEffect {
 
     @Override
     protected void applyToTarget(LivingEntity target, Player user, Event event) {
-        LivingEntity currentTarget = target;
+        List<LivingEntity> hitTargets = new ArrayList<>();
+        hitTargets.add(target); // Add the initial target
 
+        LivingEntity currentTarget = target;
         for (int i = 0; i < chainCount; i++) {
-            LivingEntity nextTarget = findNextTarget(currentTarget, user);
+            LivingEntity nextTarget = findNextTarget(currentTarget, user, hitTargets);
 
             if (nextTarget == null) {
                 break;
             }
 
             nextTarget.damage(damage, user);
+            hitTargets.add(nextTarget); // Add the new target to the list of hit entities
 
             spawnChainParticles(currentTarget, nextTarget);
-            nextTarget.getWorld().playSound(nextTarget.getLocation(), soundEffect, 1.0f, 1.0f); // <-- Reproducir el sonido
+            nextTarget.getWorld().playSound(nextTarget.getLocation(), soundEffect, 1.0f, 1.0f);
 
             currentTarget = nextTarget;
         }
     }
 
-    private LivingEntity findNextTarget(LivingEntity startTarget, Player user) {
+    private LivingEntity findNextTarget(LivingEntity startTarget, Player user, List<LivingEntity> alreadyHit) {
         LivingEntity nearest = null;
         double nearestDistance = Double.MAX_VALUE;
 
         List<Entity> nearbyEntities = startTarget.getNearbyEntities(range, range, range);
 
         for (Entity entity : nearbyEntities) {
-            if (entity.equals(user) || ! (entity instanceof LivingEntity)) {
+            // Improvements: Check if the entity has already been hit, is the user, or isn't a LivingEntity
+            if (alreadyHit.contains(entity) || entity.equals(user) || !(entity instanceof LivingEntity)) {
                 continue;
             }
+
             double distance = entity.getLocation().distance(startTarget.getLocation());
             if (distance < nearestDistance) {
                 nearestDistance = distance;
@@ -68,8 +77,8 @@ public class ChainLightningEffect extends TargetedEffect {
     }
 
     private void spawnChainParticles(LivingEntity start, LivingEntity end) {
-        Location startLoc = start.getLocation().clone().add(0, 1, 0);
-        Location endLoc = end.getLocation().clone().add(0, 1, 0);
+        Location startLoc = start.getEyeLocation();
+        Location endLoc = end.getEyeLocation();
 
         double distance = startLoc.distance(endLoc);
         Vector direction = endLoc.toVector().subtract(startLoc.toVector()).normalize();
