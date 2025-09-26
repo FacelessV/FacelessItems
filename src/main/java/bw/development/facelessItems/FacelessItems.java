@@ -21,7 +21,6 @@ public class FacelessItems extends JavaPlugin {
             this.rarityManager = new RarityManager(this);
             this.rarityManager.loadRarities();
 
-            // El CustomItemManager ahora se encarga de instanciar AuraSkillsManager
             this.customItemManager = new CustomItemManager(this);
             this.customItemManager.loadItems();
 

@@ -10,7 +10,7 @@ import dev.aurelium.auraskills.api.registry.NamespacedId;
 import org.bukkit.inventory.ItemStack;
 import java.util.List;
 import java.util.Map;
-import static dev.aurelium.auraskills.api.util.AuraSkillsModifier.Operation.ADD; // <-- ¡ESTA ES LA LÍNEA CLAVE!
+import static dev.aurelium.auraskills.api.util.AuraSkillsModifier.Operation.ADD;
 
 public class AuraSkillsManager {
 
@@ -22,7 +22,7 @@ public class AuraSkillsManager {
         this.auraSkillsApi = AuraSkillsApi.get();
     }
 
-    public ItemStack applyStatsToItem(ItemStack item, List<Map<String, Object>> auraSkillsStats, String itemKey) {
+    public ItemStack applyStatsToItem(ItemStack item, List<Map<String, Object>> auraSkillsStats) {
         if (auraSkillsBukkit == null || auraSkillsApi == null || auraSkillsStats == null || auraSkillsStats.isEmpty()) {
             return item;
         }
@@ -35,16 +35,22 @@ public class AuraSkillsManager {
         for (Map<String, Object> statBoost : auraSkillsStats) {
             String statName = (String) statBoost.get("stat");
             Object amountObj = statBoost.get("amount");
+            String modifierTypeString = (String) statBoost.getOrDefault("type", "ITEM");
+
+            ModifierType modifierType = ModifierType.ITEM;
+            try {
+                modifierType = ModifierType.valueOf(modifierTypeString.toUpperCase());
+            } catch (IllegalArgumentException ignored) {}
 
             Stat stat = registry.getStat(NamespacedId.of("auraskills", statName.toLowerCase()));
             if (stat != null && amountObj instanceof Number) {
                 modifiedItem = itemManager.addStatModifier(
                         modifiedItem,
-                        ModifierType.ITEM,
+                        modifierType,
                         stat,
                         ((Number) amountObj).doubleValue(),
                         ADD,
-                        false
+                        false // <-- ¡CORREGIDO A 'false' AQUÍ!
                 );
             }
         }

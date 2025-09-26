@@ -5,6 +5,10 @@ import bw.development.facelessItems.Effects.EffectFactory;
 import bw.development.facelessItems.FacelessItems;
 import bw.development.facelessItems.Rarity.Rarity;
 import bw.development.facelessItems.Rarity.RarityManager;
+import dev.aurelium.auraskills.api.AuraSkillsApi;
+import dev.aurelium.auraskills.api.stat.Stat;
+import dev.aurelium.auraskills.api.registry.GlobalRegistry;
+import dev.aurelium.auraskills.api.registry.NamespacedId;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -43,6 +47,9 @@ public class CustomItemManager {
         File[] files = itemsFolder.listFiles((dir, name) -> name.endsWith(".yml"));
         if (files == null) return;
 
+        // Leer la configuración global del lore desde config.yml
+        List<String> globalLoreConfig = plugin.getConfig().getStringList("lore-settings.global-lore");
+
         for (File file : files) {
             String key = file.getName().replace(".yml", "");
 
@@ -60,7 +67,7 @@ public class CustomItemManager {
 
                 String displayName = config.getString("display-name", "Custom Item: " + key);
 
-                List<String> lore = config.getStringList("lore").stream()
+                List<String> originalLore = config.getStringList("lore").stream()
                         .map(line -> ChatColor.translateAlternateColorCodes('&', line))
                         .collect(Collectors.toList());
 
@@ -81,16 +88,53 @@ public class CustomItemManager {
                         : ChatColor.translateAlternateColorCodes('&', displayName);
                 meta.setDisplayName(finalName);
 
-                if (rarity != null && rarity.getLoreTag() != null && !rarity.getLoreTag().isEmpty()) {
-                    lore.add(0, ChatColor.translateAlternateColorCodes('&', rarity.getLoreTag()));
-                }
-
                 List<Map<String, Object>> auraSkillsStats = new ArrayList<>();
                 if (config.isList("auraskills.stats")) {
                     auraSkillsStats = (List<Map<String, Object>>) config.getList("auraskills.stats");
                 }
 
-                meta.setLore(lore);
+                // --- NUEVA LÓGICA: CONSTRUIR EL LORE GLOBALMENTE ---
+                List<String> finalLore = new ArrayList<>();
+                AuraSkillsApi auraSkillsApi = AuraSkillsApi.get();
+                GlobalRegistry registry = (auraSkillsApi != null) ? auraSkillsApi.getGlobalRegistry() : null;
+
+                // Lore de la rareza
+                String rarityLore = (rarity != null && rarity.getLoreTag() != null && !rarity.getLoreTag().isEmpty())
+                        ? ChatColor.translateAlternateColorCodes('&', rarity.getLoreTag()) : "";
+
+                // Lore de las estadísticas
+                List<String> statsLore = new ArrayList<>();
+                if (registry != null && !auraSkillsStats.isEmpty()) {
+                    for (Map<String, Object> statBoost : auraSkillsStats) {
+                        String statName = (String) statBoost.get("stat");
+                        Object amountObj = statBoost.get("amount");
+                        Stat stat = registry.getStat(NamespacedId.of("auraskills", statName.toLowerCase()));
+                        if (stat != null && amountObj instanceof Number) {
+                            String sign = (((Number) amountObj).doubleValue() >= 0) ? "+" : "";
+                            String statLine = ChatColor.translateAlternateColorCodes('&', "&7" + sign + ((Number) amountObj).doubleValue() + " " + stat.getDisplayName(Locale.getDefault()));
+                            statsLore.add(statLine);
+                        }
+                    }
+                }
+
+                // Construir el lore final
+                for (String line : globalLoreConfig) {
+                    String processedLine = line;
+                    processedLine = processedLine.replace("{rarity}", rarityLore);
+                    processedLine = processedLine.replace("{original-lore}", String.join("\n", originalLore));
+                    processedLine = processedLine.replace("{auraskills-stats}", String.join("\n", statsLore));
+
+                    if (processedLine.contains("{original-lore}")) {
+                        for (String l : originalLore) finalLore.add(l);
+                    } else if (processedLine.contains("{auraskills-stats}")) {
+                        for (String l : statsLore) finalLore.add(l);
+                    } else {
+                        finalLore.add(ChatColor.translateAlternateColorCodes('&', processedLine));
+                    }
+                }
+
+                meta.setLore(finalLore);
+                // --- FIN DE LA LÓGICA DEL LORE ---
 
                 if (config.isConfigurationSection("enchantments")) {
                     for (String enchKey : config.getConfigurationSection("enchantments").getKeys(false)) {
@@ -131,7 +175,7 @@ public class CustomItemManager {
                 meta.getPersistentDataContainer().set(idKey, PersistentDataType.STRING, key);
                 itemStack.setItemMeta(meta);
 
-                ItemStack finalItem = auraSkillsManager.applyStatsToItem(itemStack, auraSkillsStats, key);
+                ItemStack finalItem = auraSkillsManager.applyStatsToItem(itemStack, auraSkillsStats);
 
                 CustomItem customItem = new CustomItem(key, finalItem, config, auraSkillsStats);
 
@@ -154,6 +198,18 @@ public class CustomItemManager {
         }
         plugin.getLogger().info("Cargados " + customItems.size() + " ítems personalizados.");
     }
+
+    private String formatStatName(String name) {
+        String[] parts = name.split("_");
+        StringBuilder formattedName = new StringBuilder();
+        for (String part : parts) {
+            if (!part.isEmpty()) {
+                formattedName.append(part.substring(0, 1).toUpperCase()).append(part.substring(1).toLowerCase()).append(" ");
+            }
+        }
+        return formattedName.toString().trim();
+    }
+
     public CustomItem getCustomItemByKey(String key) {
         return customItems.get(key);
     }
