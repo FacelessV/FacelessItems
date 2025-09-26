@@ -7,6 +7,7 @@ import bw.development.facelessItems.Effects.CooldownManager; // 1. Import Cooldo
 import bw.development.facelessItems.Effects.ShadowCloneEffect;
 import bw.development.facelessItems.Items.CustomItemManager;
 import bw.development.facelessItems.Listeners.ItemEventListener;
+import bw.development.facelessItems.Managers.MessageManager;
 import bw.development.facelessItems.Rarity.RarityManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -15,6 +16,7 @@ public class FacelessItems extends JavaPlugin {
     private CustomItemManager customItemManager;
     private RarityManager rarityManager;
     private CooldownManager cooldownManager; // 2. Add CooldownManager field
+    private MessageManager messageManager;
 
     @Override
     public void onEnable() {
@@ -22,6 +24,7 @@ public class FacelessItems extends JavaPlugin {
         saveDefaultConfig(); // Good practice to ensure config.yml exists
 
         try {
+            this.messageManager = new MessageManager(this);
             this.cooldownManager = new CooldownManager(); // 3. Initialize the manager
             this.rarityManager = new RarityManager(this);
             this.rarityManager.loadRarities();
@@ -73,5 +76,9 @@ public class FacelessItems extends JavaPlugin {
     // 4. Add a getter for the CooldownManager
     public CooldownManager getCooldownManager() {
         return cooldownManager;
+    }
+
+    public MessageManager getMessageManager() {
+        return messageManager;
     }
 }

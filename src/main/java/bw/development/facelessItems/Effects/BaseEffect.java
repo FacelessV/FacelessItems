@@ -1,7 +1,6 @@
 package bw.development.facelessItems.Effects;
 
 import bw.development.facelessItems.Effects.Conditions.Condition;
-import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 
 import java.util.List;
@@ -20,18 +19,14 @@ public abstract class BaseEffect implements Effect {
 
     @Override
     public final void apply(EffectContext context) {
-        // --- ORDEN DE OPERACIONES CORREGIDO ---
-
-        // --- 1. PRIMERO, comprobamos las condiciones ---
-        // Si no se cumplen, el método termina silenciosamente.
+        // Primero, comprobamos las condiciones. Si no se cumplen, el método termina silenciosamente.
         for (Condition condition : conditions) {
             if (!condition.check(context)) {
                 return;
             }
         }
 
-        // Si llegamos aquí, significa que TODAS las condiciones se cumplieron.
-
+        // Si las condiciones pasan, continuamos.
         Player user = context.getUser();
         if (user == null) {
             // Si no hay jugador, no hay cooldowns, así que aplicamos el efecto.
@@ -39,24 +34,31 @@ public abstract class BaseEffect implements Effect {
             return;
         }
 
-        // --- 2. DESPUÉS, si las condiciones pasan, comprobamos el cooldown ---
+        // Después, si las condiciones pasan, comprobamos el cooldown.
         String finalCooldownId = (cooldownId != null && !cooldownId.isEmpty()) ? cooldownId : context.getItemKey();
         CooldownManager cooldownManager = context.getPlugin().getCooldownManager();
 
         if (cooldown > 0 && cooldownManager.isOnCooldown(user, finalCooldownId)) {
             long remainingMillis = cooldownManager.getRemainingCooldown(user, finalCooldownId);
             double remainingSeconds = remainingMillis / 1000.0;
-            user.sendMessage(ChatColor.RED + String.format("Puedes usar esta habilidad de nuevo en %.1fs.", remainingSeconds));
+
+            // Usamos el nuevo MessageManager para enviar el mensaje de cooldown
+            String formattedSeconds = String.format("%.1f", remainingSeconds);
+            context.getPlugin().getMessageManager().sendMessage(user, "item_on_cooldown", "{cooldown_remaining}", formattedSeconds);
             return;
         }
 
-        // --- 3. SI TODO PASA, aplicamos el cooldown y el efecto ---
+        // Si todo pasa, aplicamos el cooldown y el efecto.
         if (cooldown > 0) {
             cooldownManager.setCooldown(user, finalCooldownId, cooldown);
         }
         applyEffect(context);
     }
 
+    /**
+     * Contiene la lógica específica del efecto que se ejecutará si todas las condiciones se cumplen.
+     * @param context El contexto del efecto.
+     */
     protected abstract void applyEffect(EffectContext context);
 
     @Override
