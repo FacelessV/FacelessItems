@@ -118,6 +118,23 @@ public class EffectFactory {
 
                 yield new ChainLightningEffect(chainCount, damage, range, particleType, soundEffect, target);
             }
+            case "SHADOW_CLONE" -> {
+                int duration = getSafeInt(properties.get("duration"), 100);
+                double range = getSafeDouble(properties.get("range"), 15.0);
+                String particleName = (String) properties.getOrDefault("particle_type", "CLOUD");
+                Particle particleType = Particle.CLOUD;
+                try {
+                    particleType = Particle.valueOf(particleName.toUpperCase());
+                } catch (IllegalArgumentException e) {}
+
+                String soundName = (String) properties.getOrDefault("sound_effect", "ENTITY_VILLAGER_NO");
+                Sound soundEffect = Sound.ENTITY_VILLAGER_NO;
+                try {
+                    soundEffect = Sound.valueOf(soundName.toUpperCase());
+                } catch (IllegalArgumentException e) {}
+
+                yield new ShadowCloneEffect(duration, range, particleType, soundEffect);
+            }
             default -> null;
         };
     }

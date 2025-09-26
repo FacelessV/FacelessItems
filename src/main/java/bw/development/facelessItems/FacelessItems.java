@@ -3,20 +3,24 @@ package bw.development.facelessItems;
 import bw.development.facelessItems.Commands.FacelessItemsCommand;
 import bw.development.facelessItems.Commands.GiveItemCommand;
 import bw.development.facelessItems.Commands.GiveItemTabCompleter;
+import bw.development.facelessItems.Effects.ShadowCloneEffect;
 import bw.development.facelessItems.Items.CustomItemManager;
 import bw.development.facelessItems.Listeners.ItemEventListener;
 import bw.development.facelessItems.Rarity.RarityManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.UUID;
 
 public class FacelessItems extends JavaPlugin {
-
+    private static FacelessItems instance; // <-- NUEVO CAMPO ESTATICO
     private CustomItemManager customItemManager;
     private RarityManager rarityManager;
 
     @Override
     public void onEnable() {
+        instance = this;
         try {
             this.rarityManager = new RarityManager(this);
             this.rarityManager.loadRarities();
@@ -51,6 +55,12 @@ public class FacelessItems extends JavaPlugin {
     @Override
     public void onDisable() {
         getLogger().info("FacelessItems deshabilitado.");
+        ShadowCloneEffect.cleanUpClones();
+    }
+
+    // <-- NUEVO METODO
+    public static FacelessItems getInstance() {
+        return instance;
     }
 
     public CustomItemManager getCustomItemManager() {
@@ -60,4 +70,5 @@ public class FacelessItems extends JavaPlugin {
     public RarityManager getRarityManager() {
         return rarityManager;
     }
+
 }
