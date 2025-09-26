@@ -11,7 +11,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
@@ -32,11 +32,63 @@ public class ItemEventListener implements Listener {
         this.customItemManager = customItemManager;
     }
 
+    // --- NUEVO MÉTODO PARA 'on_damage_taken' ---
+    @EventHandler
+    public void onPlayerDamage(EntityDamageEvent event) {
+        // 1. Solo nos interesa si la entidad dañada es un jugador
+        if (!(event.getEntity() instanceof Player player)) {
+            return;
+        }
+
+        // 2. Buscamos al atacante (si existe)
+        Entity attacker = null;
+        if (event instanceof EntityDamageByEntityEvent damageByEntityEvent) {
+            attacker = damageByEntityEvent.getDamager();
+        }
+
+        // 3. Iteramos sobre las 4 piezas de armadura del jugador
+        for (ItemStack armorPiece : player.getInventory().getArmorContents()) {
+            if (armorPiece == null || armorPiece.getType().isAir()) {
+                continue;
+            }
+
+            CustomItem customItem = customItemManager.getCustomItemByItemStack(armorPiece);
+            if (customItem == null) {
+                continue;
+            }
+
+            // 4. Obtenemos los efectos para el trigger 'on_damage_taken'
+            List<Effect> effects = customItem.getEffects("on_damage_taken");
+            if (effects.isEmpty()) {
+                continue;
+            }
+
+            // 5. Creamos el contexto para este evento
+            Map<String, Object> data = new HashMap<>();
+            data.put("damage_amount", event.getDamage());
+
+            // Aquí, 'user' es el jugador que recibe el daño y 'targetEntity' es el atacante
+            EffectContext context = new EffectContext(
+                    player,
+                    attacker,
+                    event,
+                    data,
+                    customItem.getKey(),
+                    plugin
+            );
+
+            // 6. Aplicamos cada efecto
+            for (Effect effect : effects) {
+                effect.apply(context);
+            }
+        }
+    }
+
     @EventHandler
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player player)) return;
         if (isApplyingCustomDamage) return;
-        if (event.getCause() != DamageCause.ENTITY_ATTACK) return;
+        if (event.getCause() != EntityDamageEvent.DamageCause.ENTITY_ATTACK) return;
 
         ItemStack weapon = player.getInventory().getItemInMainHand();
         CustomItem customItem = customItemManager.getCustomItemByItemStack(weapon);
@@ -48,6 +100,7 @@ public class ItemEventListener implements Listener {
         try {
             isApplyingCustomDamage = true;
             Entity target = event.getEntity();
+            // Aquí, 'user' es el atacante y 'targetEntity' es el que recibe el daño
             EffectContext context = new EffectContext(
                     player,
                     target,
@@ -63,6 +116,8 @@ public class ItemEventListener implements Listener {
             isApplyingCustomDamage = false;
         }
     }
+
+    // --- (El resto de tus métodos 'onPlayerInteract', 'onBlockBreak', etc. no necesitan cambios) ---
 
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
@@ -121,7 +176,7 @@ public class ItemEventListener implements Listener {
     @EventHandler
     public void onPlayerFish(PlayerFishEvent event) {
         Player player = event.getPlayer();
-        ItemStack item = player.getInventory().getItemInMainHand(); // Usando MainHand para consistencia
+        ItemStack item = player.getInventory().getItemInMainHand();
         CustomItem customItem = customItemManager.getCustomItemByItemStack(item);
         if (customItem == null) return;
 
