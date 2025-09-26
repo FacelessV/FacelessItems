@@ -15,12 +15,14 @@ public class ChainLightningEffect extends TargetedEffect {
     private final int chainCount;
     private final double damage;
     private final double range;
+    private final Particle particleType; // <-- Nuevo campo
 
-    public ChainLightningEffect(int chainCount, double damage, double range, EffectTarget target) {
+    public ChainLightningEffect(int chainCount, double damage, double range, Particle particleType, EffectTarget target) {
         super(target);
         this.chainCount = chainCount;
         this.damage = damage;
         this.range = range;
+        this.particleType = particleType;
     }
 
     @Override
@@ -28,17 +30,14 @@ public class ChainLightningEffect extends TargetedEffect {
         LivingEntity currentTarget = target;
 
         for (int i = 0; i < chainCount; i++) {
-            // Buscar la siguiente entidad cercana
             LivingEntity nextTarget = findNextTarget(currentTarget, user);
 
             if (nextTarget == null) {
                 break;
             }
 
-            // Aplicar daño
             nextTarget.damage(damage, user);
 
-            // Generar partículas entre los mobs
             spawnChainParticles(currentTarget, nextTarget);
 
             currentTarget = nextTarget;
@@ -65,7 +64,6 @@ public class ChainLightningEffect extends TargetedEffect {
     }
 
     private void spawnChainParticles(LivingEntity start, LivingEntity end) {
-        // La corrección está en esta línea, clonamos la posición y le añadimos 1 a la altura.
         Location startLoc = start.getLocation().clone().add(0, 1, 0);
         Location endLoc = end.getLocation().clone().add(0, 1, 0);
 
@@ -74,7 +72,7 @@ public class ChainLightningEffect extends TargetedEffect {
 
         for (double d = 0; d < distance; d += 0.5) {
             Location loc = startLoc.clone().add(direction.clone().multiply(d));
-            loc.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, loc, 1, 0, 0, 0, 0);
+            loc.getWorld().spawnParticle(particleType, loc, 1, 0, 0, 0, 0); // <-- Usamos el nuevo campo aquí
         }
     }
 

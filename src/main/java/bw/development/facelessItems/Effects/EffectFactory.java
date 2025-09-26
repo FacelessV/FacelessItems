@@ -3,6 +3,7 @@ package bw.development.facelessItems.Effects;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.Material;
+import org.bukkit.Particle;
 
 import java.util.*;
 import java.util.logging.Level;
@@ -100,7 +101,14 @@ public class EffectFactory {
                 int chainCount = getSafeInt(properties.get("chain_count"), 3);
                 double damage = getSafeDouble(properties.get("damage"), 5.0);
                 double range = getSafeDouble(properties.get("range"), 5.0);
-                yield new ChainLightningEffect(chainCount, damage, range, target);
+                String particleName = (String) properties.getOrDefault("particle_type", "ELECTRIC_SPARK");
+                Particle particleType = Particle.ELECTRIC_SPARK;
+                try {
+                    particleType = Particle.valueOf(particleName.toUpperCase());
+                } catch (IllegalArgumentException e) {
+                    // Se usará el valor por defecto
+                }
+                yield new ChainLightningEffect(chainCount, damage, range, particleType, target);
             }
             default -> null;
         };
