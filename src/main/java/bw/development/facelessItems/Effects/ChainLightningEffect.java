@@ -1,12 +1,12 @@
 package bw.development.facelessItems.Effects;
 
-import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.util.Vector;
+import org.bukkit.Location;
 
 import java.util.List;
 
@@ -32,7 +32,7 @@ public class ChainLightningEffect extends TargetedEffect {
             LivingEntity nextTarget = findNextTarget(currentTarget, user);
 
             if (nextTarget == null) {
-                break; // No hay más entidades para encadenar
+                break;
             }
 
             // Aplicar daño
@@ -65,11 +65,15 @@ public class ChainLightningEffect extends TargetedEffect {
     }
 
     private void spawnChainParticles(LivingEntity start, LivingEntity end) {
-        double distance = start.getLocation().distance(end.getLocation());
-        Vector direction = end.getLocation().toVector().subtract(start.getLocation().toVector()).normalize();
+        // La corrección está en esta línea, clonamos la posición y le añadimos 1 a la altura.
+        Location startLoc = start.getLocation().clone().add(0, 1, 0);
+        Location endLoc = end.getLocation().clone().add(0, 1, 0);
+
+        double distance = startLoc.distance(endLoc);
+        Vector direction = endLoc.toVector().subtract(startLoc.toVector()).normalize();
 
         for (double d = 0; d < distance; d += 0.5) {
-            Location loc = start.getLocation().clone().add(direction.clone().multiply(d));
+            Location loc = startLoc.clone().add(direction.clone().multiply(d));
             loc.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, loc, 1, 0, 0, 0, 0);
         }
     }

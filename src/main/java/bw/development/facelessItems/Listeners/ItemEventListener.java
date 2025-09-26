@@ -11,6 +11,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 
@@ -22,49 +23,54 @@ import java.util.Map;
 public class ItemEventListener implements Listener {
 
     private final FacelessItems plugin;
+    private boolean isApplyingCustomDamage = false; // <-- NUEVA BANDERA
 
     public ItemEventListener(FacelessItems plugin) {
         this.plugin = plugin;
     }
 
-    /**
-     * Listens when a player damages an entity (hits it).
-     * Applies effects with the "on_hit" trigger.
-     */
     @EventHandler
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player player)) return;
 
+        // Si ya estamos aplicando daño personalizado, salimos para evitar el bucle.
+        if (isApplyingCustomDamage) {
+            return;
+        }
+
+        if (event.getCause() != DamageCause.ENTITY_ATTACK) {
+            return;
+        }
+
         ItemStack weapon = player.getInventory().getItemInMainHand();
         if (weapon == null || weapon.getType().isAir()) return;
 
-        // Get the CustomItem from the ItemStack.
         CustomItem customItem = plugin.getCustomItemManager().getCustomItemByItemStack(weapon);
         if (customItem == null) return;
 
-        // Get the effects for the "on_hit" trigger.
         List<Effect> effects = customItem.getEffects("on_hit");
         if (effects.isEmpty()) return;
 
-        // Create the context for the effect.
-        Entity target = event.getEntity();
-        EffectContext context = new EffectContext(
-                player,
-                target,
-                event,
-                Collections.singletonMap("damage_amount", event.getDamage())
-        );
+        try {
+            isApplyingCustomDamage = true; // Establecemos la bandera en true
 
-        // Apply all effects.
-        for (Effect effect : effects) {
-            effect.apply(context);
+            Entity target = event.getEntity();
+            EffectContext context = new EffectContext(
+                    player,
+                    target,
+                    event,
+                    Collections.singletonMap("damage_amount", event.getDamage())
+            );
+
+            for (Effect effect : effects) {
+                effect.apply(context);
+            }
+        } finally {
+            isApplyingCustomDamage = false; // Nos aseguramos de que siempre se restablezca la bandera
         }
     }
 
-    /**
-     * Listens when a player interacts (right-click, for example).
-     * Applies effects with the "on_use" trigger.
-     */
+    // ... (El resto de tu código, incluyendo onPlayerInteract y onBlockBreak)
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
@@ -78,7 +84,6 @@ public class ItemEventListener implements Listener {
         List<Effect> effects = customItem.getEffects("on_use");
         if (effects.isEmpty()) return;
 
-        // Create the context for the effect (the target entity is null in this case).
         EffectContext context = new EffectContext(
                 player,
                 null,
@@ -86,11 +91,11 @@ public class ItemEventListener implements Listener {
                 Collections.emptyMap()
         );
 
-        // Apply all effects.
         for (Effect effect : effects) {
             effect.apply(context);
         }
     }
+
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
