@@ -70,8 +70,12 @@ public class EffectFactory {
             }
             case "BREAK_BLOCK" -> {
                 int radius = getSafeInt(properties.get("radius"), 1);
-                int layers = getSafeInt(properties.get("layers"), 1); // <--- Nuevo parámetro
+                int layers = getSafeInt(properties.get("layers"), 1);
                 yield new BreakBlockEffect(radius, layers);
+            }
+            case "VEIN_MINE" -> {
+                int maxBlocks = getSafeInt(properties.get("max_blocks"), 64);
+                yield new VeinMineEffect(maxBlocks);
             }
             default -> null;
         };
