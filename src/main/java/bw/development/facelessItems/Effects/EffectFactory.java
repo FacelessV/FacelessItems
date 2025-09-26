@@ -1,5 +1,6 @@
 package bw.development.facelessItems.Effects;
 
+import org.bukkit.Sound;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.Material;
@@ -101,14 +102,21 @@ public class EffectFactory {
                 int chainCount = getSafeInt(properties.get("chain_count"), 3);
                 double damage = getSafeDouble(properties.get("damage"), 5.0);
                 double range = getSafeDouble(properties.get("range"), 5.0);
+
                 String particleName = (String) properties.getOrDefault("particle_type", "ELECTRIC_SPARK");
                 Particle particleType = Particle.ELECTRIC_SPARK;
                 try {
                     particleType = Particle.valueOf(particleName.toUpperCase());
-                } catch (IllegalArgumentException e) {
-                    // Se usará el valor por defecto
-                }
-                yield new ChainLightningEffect(chainCount, damage, range, particleType, target);
+                } catch (IllegalArgumentException e) {}
+
+                // Lógica para leer el nuevo tipo de sonido
+                String soundName = (String) properties.getOrDefault("sound_effect", "ENTITY_LIGHTNING_BOLT_THUNDER");
+                Sound soundEffect = Sound.ENTITY_LIGHTNING_BOLT_THUNDER; // Valor por defecto
+                try {
+                    soundEffect = Sound.valueOf(soundName.toUpperCase());
+                } catch (IllegalArgumentException e) {}
+
+                yield new ChainLightningEffect(chainCount, damage, range, particleType, soundEffect, target);
             }
             default -> null;
         };

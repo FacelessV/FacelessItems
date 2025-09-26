@@ -1,6 +1,7 @@
 package bw.development.facelessItems.Effects;
 
 import org.bukkit.Particle;
+import org.bukkit.Sound;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -15,14 +16,16 @@ public class ChainLightningEffect extends TargetedEffect {
     private final int chainCount;
     private final double damage;
     private final double range;
-    private final Particle particleType; // <-- Nuevo campo
+    private final Particle particleType;
+    private final Sound soundEffect; // <-- Nuevo campo
 
-    public ChainLightningEffect(int chainCount, double damage, double range, Particle particleType, EffectTarget target) {
+    public ChainLightningEffect(int chainCount, double damage, double range, Particle particleType, Sound soundEffect, EffectTarget target) {
         super(target);
         this.chainCount = chainCount;
         this.damage = damage;
         this.range = range;
         this.particleType = particleType;
+        this.soundEffect = soundEffect;
     }
 
     @Override
@@ -39,6 +42,7 @@ public class ChainLightningEffect extends TargetedEffect {
             nextTarget.damage(damage, user);
 
             spawnChainParticles(currentTarget, nextTarget);
+            nextTarget.getWorld().playSound(nextTarget.getLocation(), soundEffect, 1.0f, 1.0f); // <-- Reproducir el sonido
 
             currentTarget = nextTarget;
         }
@@ -72,7 +76,7 @@ public class ChainLightningEffect extends TargetedEffect {
 
         for (double d = 0; d < distance; d += 0.5) {
             Location loc = startLoc.clone().add(direction.clone().multiply(d));
-            loc.getWorld().spawnParticle(particleType, loc, 1, 0, 0, 0, 0); // <-- Usamos el nuevo campo aquí
+            loc.getWorld().spawnParticle(particleType, loc, 1, 0, 0, 0, 0);
         }
     }
 
