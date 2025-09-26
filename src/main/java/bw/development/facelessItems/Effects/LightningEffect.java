@@ -9,15 +9,16 @@ import java.util.List;
 
 public class LightningEffect extends TargetedEffect {
 
-    // The constructor now accepts the list of conditions
-    public LightningEffect(EffectTarget target, List<Condition> conditions) {
-        // Pass the conditions to the parent class
-        super(target, conditions);
+    // --- CONSTRUCTOR UPDATED ---
+    // Now accepts cooldown and cooldownId
+    public LightningEffect(EffectTarget target, List<Condition> conditions, int cooldown, String cooldownId) {
+        // And passes them to the parent class
+        super(target, conditions, cooldown, cooldownId);
     }
 
     @Override
     protected void applyToTarget(LivingEntity target, Player user, Event event) {
-        // This logic is perfect, no changes needed.
+        // This logic is perfect and needs no changes.
         target.getWorld().strikeLightning(target.getLocation());
     }
 

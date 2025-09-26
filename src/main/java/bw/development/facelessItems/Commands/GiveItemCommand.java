@@ -1,6 +1,5 @@
 package bw.development.facelessItems.Commands;
 
-import bw.development.facelessItems.FacelessItems;
 import bw.development.facelessItems.Items.CustomItem;
 import bw.development.facelessItems.Items.CustomItemManager;
 import org.bukkit.Bukkit;
@@ -12,17 +11,19 @@ import org.bukkit.entity.Player;
 
 public class GiveItemCommand implements CommandExecutor {
 
-    private final FacelessItems plugin;
+    // --- LÍNEA ELIMINADA ---
+    // private final FacelessItems plugin;
     private final CustomItemManager customItemManager;
 
-    public GiveItemCommand(FacelessItems plugin, CustomItemManager customItemManager) {
-        this.plugin = plugin;
+    // --- CONSTRUCTOR CORREGIDO ---
+    // Ahora solo pide el CustomItemManager, que es lo único que usa.
+    public GiveItemCommand(CustomItemManager customItemManager) {
         this.customItemManager = customItemManager;
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-
+        // ... tu lógica de comando (que está perfecta) no cambia ...
         if (!sender.hasPermission("facelessitems.giveitem")) {
             sender.sendMessage(ChatColor.RED + "No tienes permiso para usar este comando.");
             return true;

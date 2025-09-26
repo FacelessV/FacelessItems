@@ -10,7 +10,6 @@ import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason;
 import org.bukkit.potion.PotionEffectType;
 
 import java.util.*;
-import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 public class EffectFactory {
@@ -55,11 +54,6 @@ public class EffectFactory {
         return materials;
     }
 
-    /**
-     * Parsea la sección 'conditions' de las propiedades de un efecto.
-     * @param properties El mapa de propiedades del efecto.
-     * @return Una lista de objetos Condition.
-     */
     private static List<Condition> parseConditions(Map<String, Object> properties) {
         Object rawConditions = properties.get("conditions");
         if (!(rawConditions instanceof Map)) {
@@ -70,7 +64,7 @@ public class EffectFactory {
         @SuppressWarnings("unchecked")
         Map<String, Object> conditionsMap = (Map<String, Object>) rawConditions;
 
-        // Lógica para target_mobs y not_target_mobs
+        // Mob conditions
         for (String key : Arrays.asList("target_mobs", "not_target_mobs")) {
             if (conditionsMap.get(key) instanceof List) {
                 @SuppressWarnings("unchecked")
@@ -81,14 +75,13 @@ public class EffectFactory {
                         })
                         .filter(Objects::nonNull)
                         .collect(Collectors.toSet());
-
                 if (!mobTypes.isEmpty()) {
                     conditions.add(new TargetMobCondition(mobTypes, key.startsWith("not_")));
                 }
             }
         }
 
-        // Lógica para spawn_reason y not_spawn_reason
+        // Spawn Reason conditions
         for (String key : Arrays.asList("spawn_reason", "not_spawn_reason")) {
             if (conditionsMap.get(key) instanceof List) {
                 @SuppressWarnings("unchecked")
@@ -99,14 +92,13 @@ public class EffectFactory {
                         })
                         .filter(Objects::nonNull)
                         .collect(Collectors.toSet());
-
                 if (!reasons.isEmpty()) {
                     conditions.add(new SpawnReasonCondition(reasons, key.startsWith("not_")));
                 }
             }
         }
 
-        // Lógica para blocks y not_blocks
+        // Block conditions
         for (String key : Arrays.asList("blocks", "not_blocks")) {
             if (conditionsMap.get(key) instanceof List) {
                 @SuppressWarnings("unchecked")
@@ -117,7 +109,6 @@ public class EffectFactory {
                         })
                         .filter(Objects::nonNull)
                         .collect(Collectors.toSet());
-
                 if (!materialTypes.isEmpty()) {
                     conditions.add(new BlockCondition(materialTypes, key.startsWith("not_")));
                 }
@@ -138,19 +129,21 @@ public class EffectFactory {
         }
 
         List<Condition> conditions = parseConditions(properties);
+        int cooldown = getSafeInt(properties.get("cooldown"), 0);
+        String cooldownId = (String) properties.get("cooldown_id");
 
         return switch (upperType) {
             case "DAMAGE" -> {
                 double amount = getSafeDouble(properties.get("amount"), 5.0);
-                yield new DamageEffect(amount, target, conditions);
+                yield new DamageEffect(amount, target, conditions, cooldown, cooldownId);
             }
             case "HEAL" -> {
                 double amount = getSafeDouble(properties.get("amount"), 5.0);
-                yield new HealEffect(amount, target, conditions);
+                yield new HealEffect(amount, target, conditions, cooldown, cooldownId);
             }
             case "MESSAGE" -> {
                 String text = (String) properties.getOrDefault("text", "Mensaje vacío");
-                yield new MessageEffect(text, conditions);
+                yield new MessageEffect(text, conditions, cooldown, cooldownId);
             }
             case "POTION" -> {
                 String potionTypeName = (String) properties.getOrDefault("potion_type", "SPEED");
@@ -159,23 +152,21 @@ public class EffectFactory {
                 int amplifier = getSafeInt(properties.get("amplifier"), 0);
 
                 if (potionType == null) yield null;
-                yield new PotionEffect(potionType, duration, amplifier, target, conditions);
+                yield new PotionEffect(potionType, duration, amplifier, target, conditions, cooldown, cooldownId);
             }
             case "LIGHTNING" -> {
-                yield new LightningEffect(target, conditions);
+                yield new LightningEffect(target, conditions, cooldown, cooldownId);
             }
             case "BREAK_BLOCK" -> {
                 int radius = getSafeInt(properties.get("radius"), 1);
                 int layers = getSafeInt(properties.get("layers"), 1);
                 List<Material> mineableBlocks = getSafeMaterialList(properties.get("can_mine_blocks"));
-                yield new BreakBlockEffect(radius, layers, mineableBlocks, conditions);
+                yield new BreakBlockEffect(radius, layers, mineableBlocks, conditions, cooldown, cooldownId);
             }
-
-            // --- TODO: Actualiza las clases y constructores de los efectos restantes ---
             case "VEIN_MINE" -> {
                 int maxBlocks = getSafeInt(properties.get("max_blocks"), 64);
                 List<Material> mineableBlocks = getSafeMaterialList(properties.get("can_mine_blocks"));
-                yield new VeinMineEffect(maxBlocks, mineableBlocks, conditions);
+                yield new VeinMineEffect(maxBlocks, mineableBlocks, conditions, cooldown, cooldownId);
             }
             case "CHAIN_LIGHTNING" -> {
                 int chainCount = getSafeInt(properties.get("chain_count"), 3);
@@ -194,7 +185,7 @@ public class EffectFactory {
                     soundEffect = Sound.valueOf(soundName.toUpperCase());
                 } catch (IllegalArgumentException e) {}
 
-                yield new ChainLightningEffect(chainCount, damage, range, particleType, soundEffect, target, conditions);
+                yield new ChainLightningEffect(chainCount, damage, range, particleType, soundEffect, target, conditions, cooldown, cooldownId);
             }
             case "SHADOW_CLONE" -> {
                 int duration = getSafeInt(properties.get("duration"), 100);
@@ -211,11 +202,11 @@ public class EffectFactory {
                     soundEffect = Sound.valueOf(soundName.toUpperCase());
                 } catch (IllegalArgumentException e) {}
 
-                yield new ShadowCloneEffect(duration, range, particleType, soundEffect, conditions);
+                yield new ShadowCloneEffect(duration, range, particleType, soundEffect, conditions, cooldown, cooldownId);
             }
             case "GRAPPLING_HOOK" -> {
                 double strength = getSafeDouble(properties.get("strength"), 1.5);
-                yield new GrapplingHookEffect(strength, conditions);
+                yield new GrapplingHookEffect(strength, conditions, cooldown, cooldownId);
             }
             default -> null;
         };
@@ -238,7 +229,6 @@ public class EffectFactory {
             ConfigurationSection effectSection = section.getConfigurationSection(key);
 
             Map<String, Object> properties = new HashMap<>(effectSection.getValues(false));
-            // Asegurarse de que las sub-secciones como 'conditions' se pasen como un mapa
             if (effectSection.isConfigurationSection("conditions")) {
                 properties.put("conditions", effectSection.getConfigurationSection("conditions").getValues(true));
             }

@@ -7,7 +7,6 @@ import bw.development.facelessItems.Effects.EffectContext;
 import bw.development.facelessItems.Items.CustomItemManager;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
@@ -15,7 +14,6 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
 import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.Collections;
@@ -37,18 +35,10 @@ public class ItemEventListener implements Listener {
     @EventHandler
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player player)) return;
-
-        if (isApplyingCustomDamage) {
-            return;
-        }
-
-        if (event.getCause() != DamageCause.ENTITY_ATTACK) {
-            return;
-        }
+        if (isApplyingCustomDamage) return;
+        if (event.getCause() != DamageCause.ENTITY_ATTACK) return;
 
         ItemStack weapon = player.getInventory().getItemInMainHand();
-        if (weapon == null || weapon.getType().isAir()) return;
-
         CustomItem customItem = customItemManager.getCustomItemByItemStack(weapon);
         if (customItem == null) return;
 
@@ -57,15 +47,15 @@ public class ItemEventListener implements Listener {
 
         try {
             isApplyingCustomDamage = true;
-
             Entity target = event.getEntity();
             EffectContext context = new EffectContext(
                     player,
                     target,
                     event,
-                    Collections.singletonMap("damage_amount", event.getDamage())
+                    Collections.singletonMap("damage_amount", event.getDamage()),
+                    customItem.getKey(),
+                    plugin
             );
-
             for (Effect effect : effects) {
                 effect.apply(context);
             }
@@ -83,9 +73,6 @@ public class ItemEventListener implements Listener {
 
         Player player = event.getPlayer();
         ItemStack item = event.getItem();
-
-        if (item == null || item.getType().isAir()) return;
-
         CustomItem customItem = customItemManager.getCustomItemByItemStack(item);
         if (customItem == null) return;
 
@@ -96,9 +83,10 @@ public class ItemEventListener implements Listener {
                 player,
                 null,
                 event,
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                customItem.getKey(),
+                plugin
         );
-
         for (Effect effect : effects) {
             effect.apply(context);
         }
@@ -108,7 +96,6 @@ public class ItemEventListener implements Listener {
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
         ItemStack item = player.getInventory().getItemInMainHand();
-
         CustomItem customItem = customItemManager.getCustomItemByItemStack(item);
         if (customItem == null) return;
 
@@ -122,9 +109,10 @@ public class ItemEventListener implements Listener {
                 player,
                 null,
                 event,
-                data
+                data,
+                customItem.getKey(),
+                plugin
         );
-
         for (Effect effect : effects) {
             effect.apply(context);
         }
@@ -133,10 +121,7 @@ public class ItemEventListener implements Listener {
     @EventHandler
     public void onPlayerFish(PlayerFishEvent event) {
         Player player = event.getPlayer();
-        ItemStack item = event.getPlayer().getInventory().getItem(EquipmentSlot.HAND);
-
-        if (item == null || item.getType().isAir()) return;
-
+        ItemStack item = player.getInventory().getItemInMainHand(); // Usando MainHand para consistencia
         CustomItem customItem = customItemManager.getCustomItemByItemStack(item);
         if (customItem == null) return;
 
@@ -147,9 +132,10 @@ public class ItemEventListener implements Listener {
                 player,
                 null,
                 event,
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                customItem.getKey(),
+                plugin
         );
-
         for (Effect effect : effects) {
             effect.apply(context);
         }

@@ -13,7 +13,6 @@ import org.bukkit.util.Vector;
 import java.util.ArrayList;
 import java.util.List;
 
-// 1. Now extends TargetedEffect (which extends BaseEffect)
 public class ChainLightningEffect extends TargetedEffect {
 
     private final int chainCount;
@@ -22,9 +21,11 @@ public class ChainLightningEffect extends TargetedEffect {
     private final Particle particleType;
     private final Sound soundEffect;
 
-    // 2. The constructor now accepts the list of conditions
-    public ChainLightningEffect(int chainCount, double damage, double range, Particle particleType, Sound soundEffect, EffectTarget target, List<Condition> conditions) {
-        super(target, conditions); // 3. Pass conditions to the parent class
+    // --- CONSTRUCTOR UPDATED ---
+    // Now accepts cooldown and cooldownId
+    public ChainLightningEffect(int chainCount, double damage, double range, Particle particleType, Sound soundEffect, EffectTarget target, List<Condition> conditions, int cooldown, String cooldownId) {
+        // And passes them to the parent class (TargetedEffect)
+        super(target, conditions, cooldown, cooldownId);
         this.chainCount = chainCount;
         this.damage = damage;
         this.range = range;
@@ -34,8 +35,9 @@ public class ChainLightningEffect extends TargetedEffect {
 
     @Override
     protected void applyToTarget(LivingEntity target, Player user, Event event) {
+        // Your excellent logic for the effect remains unchanged.
         List<LivingEntity> hitTargets = new ArrayList<>();
-        hitTargets.add(target); // Add the initial target
+        hitTargets.add(target);
 
         LivingEntity currentTarget = target;
         for (int i = 0; i < chainCount; i++) {
@@ -46,7 +48,7 @@ public class ChainLightningEffect extends TargetedEffect {
             }
 
             nextTarget.damage(damage, user);
-            hitTargets.add(nextTarget); // Add the new target to the list of hit entities
+            hitTargets.add(nextTarget);
 
             spawnChainParticles(currentTarget, nextTarget);
             nextTarget.getWorld().playSound(nextTarget.getLocation(), soundEffect, 1.0f, 1.0f);
@@ -62,7 +64,6 @@ public class ChainLightningEffect extends TargetedEffect {
         List<Entity> nearbyEntities = startTarget.getNearbyEntities(range, range, range);
 
         for (Entity entity : nearbyEntities) {
-            // Improvements: Check if the entity has already been hit, is the user, or isn't a LivingEntity
             if (alreadyHit.contains(entity) || entity.equals(user) || !(entity instanceof LivingEntity)) {
                 continue;
             }

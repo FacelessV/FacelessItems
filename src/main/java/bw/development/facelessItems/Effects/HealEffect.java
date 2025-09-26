@@ -11,10 +11,11 @@ public class HealEffect extends TargetedEffect {
 
     private final double amount;
 
-    // The constructor now accepts the list of conditions
-    public HealEffect(double amount, EffectTarget target, List<Condition> conditions) {
-        // Pass the conditions to the parent class (TargetedEffect)
-        super(target, conditions);
+    // --- CONSTRUCTOR UPDATED ---
+    // Now accepts cooldown and cooldownId
+    public HealEffect(double amount, EffectTarget target, List<Condition> conditions, int cooldown, String cooldownId) {
+        // And passes them to the parent class (TargetedEffect)
+        super(target, conditions, cooldown, cooldownId);
         this.amount = amount;
     }
 

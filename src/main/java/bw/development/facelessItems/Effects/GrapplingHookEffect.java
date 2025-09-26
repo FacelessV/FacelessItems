@@ -9,18 +9,18 @@ import org.bukkit.util.Vector;
 
 import java.util.List;
 
-// 1. Now extends BaseEffect
 public class GrapplingHookEffect extends BaseEffect {
 
     private final double strength;
 
-    // 2. The constructor now accepts the list of conditions
-    public GrapplingHookEffect(double strength, List<Condition> conditions) {
-        super(conditions); // 3. Pass conditions to the parent class
+    // --- CONSTRUCTOR UPDATED ---
+    // Now accepts cooldown and cooldownId
+    public GrapplingHookEffect(double strength, List<Condition> conditions, int cooldown, String cooldownId) {
+        // And passes them to the parent class
+        super(conditions, cooldown, cooldownId);
         this.strength = strength;
     }
 
-    // 4. Renamed 'apply' to 'applyEffect'
     @Override
     protected void applyEffect(EffectContext context) {
         Player player = context.getUser();
@@ -30,7 +30,7 @@ public class GrapplingHookEffect extends BaseEffect {
             return;
         }
 
-        // The rest of your logic is perfect and remains unchanged
+        // Your physics logic remains unchanged.
         if (fishEvent.getState() == PlayerFishEvent.State.IN_GROUND) {
             if (fishEvent.getHook() == null) {
                 return;

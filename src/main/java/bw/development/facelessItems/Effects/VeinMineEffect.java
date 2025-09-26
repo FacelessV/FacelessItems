@@ -3,14 +3,12 @@ package bw.development.facelessItems.Effects;
 import bw.development.facelessItems.Effects.Conditions.Condition;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
-import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.GameMode; // Import GameMode
+import org.bukkit.GameMode;
 
 import java.util.*;
 
-// 1. Now extends BaseEffect
 public class VeinMineEffect extends BaseEffect {
 
     private static final Set<Material> TOOLS = EnumSet.of(
@@ -24,14 +22,15 @@ public class VeinMineEffect extends BaseEffect {
     private final int maxBlocks;
     private final List<Material> mineableBlocks;
 
-    // 2. The constructor now accepts the list of conditions
-    public VeinMineEffect(int maxBlocks, List<Material> mineableBlocks, List<Condition> conditions) {
-        super(conditions); // 3. Pass conditions to the parent class
+    // --- CONSTRUCTOR UPDATED ---
+    // Now accepts cooldown and cooldownId
+    public VeinMineEffect(int maxBlocks, List<Material> mineableBlocks, List<Condition> conditions, int cooldown, String cooldownId) {
+        // And passes them to the parent class
+        super(conditions, cooldown, cooldownId);
         this.maxBlocks = maxBlocks;
         this.mineableBlocks = mineableBlocks;
     }
 
-    // 4. Renamed 'apply' to 'applyEffect'
     @Override
     protected void applyEffect(EffectContext context) {
         Player player = context.getUser();
@@ -42,7 +41,6 @@ public class VeinMineEffect extends BaseEffect {
 
         if (player == null) return;
 
-        // --- Your excellent BFS logic remains unchanged ---
         if (!mineableBlocks.isEmpty() && !mineableBlocks.contains(startBlock.getType())) {
             return;
         }
@@ -61,11 +59,10 @@ public class VeinMineEffect extends BaseEffect {
             return;
         }
 
-        int blocksBroken = 0; // Use a counter to respect maxBlocks
+        int blocksBroken = 0;
         while (!blocksToProcess.isEmpty() && blocksBroken < maxBlocks) {
             Block currentBlock = blocksToProcess.poll();
 
-            // Handle creative mode correctly
             if (player.getGameMode() == GameMode.CREATIVE) {
                 currentBlock.breakNaturally();
             } else {
@@ -73,7 +70,6 @@ public class VeinMineEffect extends BaseEffect {
             }
             blocksBroken++;
 
-            // Search in all 26 directions for a more thorough vein mine
             for (int x = -1; x <= 1; x++) {
                 for (int y = -1; y <= 1; y++) {
                     for (int z = -1; z <= 1; z++) {

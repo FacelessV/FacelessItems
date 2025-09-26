@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-// 1. Now extends BaseEffect
 public class ShadowCloneEffect extends BaseEffect {
 
     private static final Set<UUID> activeClones = new HashSet<>();
@@ -26,22 +25,23 @@ public class ShadowCloneEffect extends BaseEffect {
     private final Particle particleType;
     private final Sound soundEffect;
 
-    // 2. The constructor now accepts the list of conditions
-    public ShadowCloneEffect(int duration, double range, Particle particleType, Sound soundEffect, List<Condition> conditions) {
-        super(conditions); // 3. Pass conditions to the parent class
+    // --- CONSTRUCTOR UPDATED ---
+    // Now accepts cooldown and cooldownId
+    public ShadowCloneEffect(int duration, double range, Particle particleType, Sound soundEffect, List<Condition> conditions, int cooldown, String cooldownId) {
+        // And passes them to the parent class
+        super(conditions, cooldown, cooldownId);
         this.duration = duration;
         this.range = range;
         this.particleType = particleType;
         this.soundEffect = soundEffect;
     }
 
-    // 4. Renamed 'apply' to 'applyEffect'
     @Override
     protected void applyEffect(EffectContext context) {
         Player player = context.getUser();
         if (player == null) return;
 
-        // --- Your excellent logic remains unchanged ---
+        // Your excellent logic for the clone remains unchanged.
         Location cloneLocation = player.getLocation();
 
         Villager clone = player.getWorld().spawn(cloneLocation, Villager.class);

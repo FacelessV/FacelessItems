@@ -1,35 +1,61 @@
 package bw.development.facelessItems.Effects;
 
 import bw.development.facelessItems.Effects.Conditions.Condition;
+import org.bukkit.ChatColor;
+import org.bukkit.entity.Player;
 
 import java.util.List;
 
-/**
- * Una clase base abstracta para todos los efectos que maneja la lógica de condiciones.
- */
 public abstract class BaseEffect implements Effect {
 
     protected final List<Condition> conditions;
+    protected final int cooldown;
+    protected final String cooldownId;
 
-    public BaseEffect(List<Condition> conditions) {
+    public BaseEffect(List<Condition> conditions, int cooldown, String cooldownId) {
         this.conditions = conditions;
+        this.cooldown = cooldown;
+        this.cooldownId = cooldownId;
     }
 
     @Override
     public final void apply(EffectContext context) {
-        // Comprobar todas las condiciones primero.
+        Player user = context.getUser();
+        if (user == null) {
+            // Si no hay usuario, no puede haber cooldown, así que se aplica directamente
+            applyEffect(context);
+            return;
+        }
+
+        // --- 1. COMPROBACIÓN DEL COOLDOWN ---
+        String finalCooldownId = (cooldownId != null && !cooldownId.isEmpty()) ? cooldownId : context.getItemKey();
+        CooldownManager cooldownManager = context.getPlugin().getCooldownManager();
+
+        if (cooldown > 0 && cooldownManager.isOnCooldown(user, finalCooldownId)) {
+            long remainingMillis = cooldownManager.getRemainingCooldown(user, finalCooldownId);
+            double remainingSeconds = remainingMillis / 1000.0;
+
+            // Este es el único mensaje que se queda
+            user.sendMessage(ChatColor.RED + String.format("Puedes usar esta habilidad de nuevo en %.1fs.", remainingSeconds));
+            return;
+        }
+
+        // --- 2. COMPROBACIÓN DE CONDICIONES ---
         for (Condition condition : conditions) {
             if (!condition.check(context)) {
-                return; // Si una condición falla, detener la ejecución del efecto.
+                return;
             }
         }
-        // Si todas las condiciones pasan, ejecutar la lógica específica del efecto.
+
+        // --- 3. INICIO DEL COOLDOWN Y APLICACIÓN DEL EFECTO ---
+        if (cooldown > 0) {
+            cooldownManager.setCooldown(user, finalCooldownId, cooldown);
+        }
         applyEffect(context);
     }
 
-    /**
-     * Contiene la lógica específica del efecto que se ejecutará si todas las condiciones se cumplen.
-     * @param context El contexto del efecto.
-     */
     protected abstract void applyEffect(EffectContext context);
+
+    @Override
+    public abstract String getType();
 }

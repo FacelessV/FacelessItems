@@ -1,6 +1,5 @@
 package bw.development.facelessItems.Commands;
 
-import bw.development.facelessItems.FacelessItems;
 import bw.development.facelessItems.Items.CustomItem;
 import bw.development.facelessItems.Items.CustomItemManager;
 import org.bukkit.Bukkit;
@@ -15,18 +14,19 @@ import java.util.stream.Collectors;
 
 public class GiveItemTabCompleter implements TabCompleter {
 
-    private final FacelessItems plugin;
+    // --- LÍNEA ELIMINADA ---
+    // private final FacelessItems plugin;
     private final CustomItemManager customItemManager;
 
-    public GiveItemTabCompleter(FacelessItems plugin, CustomItemManager customItemManager) {
-        this.plugin = plugin;
+    // --- CONSTRUCTOR CORREGIDO ---
+    public GiveItemTabCompleter(CustomItemManager customItemManager) {
         this.customItemManager = customItemManager;
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        // ... tu lógica de TabCompleter (que también está perfecta) no cambia ...
         if (args.length == 1) {
-            // Sugerir nombres de jugadores
             List<String> playerNames = new ArrayList<>();
             for (Player player : Bukkit.getOnlinePlayers()) {
                 playerNames.add(player.getName());
@@ -35,12 +35,11 @@ public class GiveItemTabCompleter implements TabCompleter {
         }
 
         if (args.length == 2) {
-            // Sugerir las claves de los ítems personalizados
             return customItemManager.getAllCustomItems().stream()
                     .map(CustomItem::getKey)
                     .collect(Collectors.toList());
         }
 
-        return new ArrayList<>(); // No sugerir nada para otros argumentos
+        return new ArrayList<>();
     }
 }

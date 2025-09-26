@@ -14,7 +14,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.EnumSet;
 
-// 1. Ahora extiende BaseEffect
 public class BreakBlockEffect extends BaseEffect {
 
     private static final Set<Material> TOOLS = EnumSet.of(
@@ -29,15 +28,16 @@ public class BreakBlockEffect extends BaseEffect {
     private final int layers;
     private final List<Material> mineableBlocks;
 
-    // 2. El constructor ahora acepta la lista de condiciones
-    public BreakBlockEffect(int radius, int layers, List<Material> mineableBlocks, List<Condition> conditions) {
-        super(conditions); // 3. Se pasan las condiciones al constructor padre
+    // --- CONSTRUCTOR UPDATED ---
+    // Now accepts cooldown and cooldownId
+    public BreakBlockEffect(int radius, int layers, List<Material> mineableBlocks, List<Condition> conditions, int cooldown, String cooldownId) {
+        // And passes them to the parent class
+        super(conditions, cooldown, cooldownId);
         this.radius = radius;
         this.layers = layers;
         this.mineableBlocks = mineableBlocks;
     }
 
-    // 4. El método 'apply' se renombra a 'applyEffect'
     @Override
     protected void applyEffect(EffectContext context) {
         Player player = context.getUser();
@@ -81,7 +81,6 @@ public class BreakBlockEffect extends BaseEffect {
 
                         Block currentBlock = blockToBreak.getBlock();
 
-                        // Usamos la comprobación moderna y más segura
                         if (currentBlock.getType().getHardness() < 0 || currentBlock.getType() == Material.AIR) {
                             continue;
                         }

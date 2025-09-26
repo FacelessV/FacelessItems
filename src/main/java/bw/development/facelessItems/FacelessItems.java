@@ -3,6 +3,7 @@ package bw.development.facelessItems;
 import bw.development.facelessItems.Commands.FacelessItemsCommand;
 import bw.development.facelessItems.Commands.GiveItemCommand;
 import bw.development.facelessItems.Commands.GiveItemTabCompleter;
+import bw.development.facelessItems.Effects.CooldownManager; // 1. Import CooldownManager
 import bw.development.facelessItems.Effects.ShadowCloneEffect;
 import bw.development.facelessItems.Items.CustomItemManager;
 import bw.development.facelessItems.Listeners.ItemEventListener;
@@ -13,11 +14,15 @@ public class FacelessItems extends JavaPlugin {
     private static FacelessItems instance;
     private CustomItemManager customItemManager;
     private RarityManager rarityManager;
+    private CooldownManager cooldownManager; // 2. Add CooldownManager field
 
     @Override
     public void onEnable() {
         instance = this;
+        saveDefaultConfig(); // Good practice to ensure config.yml exists
+
         try {
+            this.cooldownManager = new CooldownManager(); // 3. Initialize the manager
             this.rarityManager = new RarityManager(this);
             this.rarityManager.loadRarities();
 
@@ -29,8 +34,8 @@ public class FacelessItems extends JavaPlugin {
             if (getCommand("giveitem") == null) {
                 getLogger().severe("El comando 'giveitem' no está registrado en plugin.yml!");
             } else {
-                getCommand("giveitem").setExecutor(new GiveItemCommand(this, customItemManager));
-                this.getCommand("giveitem").setTabCompleter(new GiveItemTabCompleter(this, customItemManager));
+                getCommand("giveitem").setExecutor(new GiveItemCommand(customItemManager));
+                getCommand("giveitem").setTabCompleter(new GiveItemTabCompleter(customItemManager));
             }
 
             if (getCommand("facelessitems") == null) {
@@ -39,19 +44,18 @@ public class FacelessItems extends JavaPlugin {
                 getCommand("facelessitems").setExecutor(new FacelessItemsCommand(this));
             }
 
-
             getLogger().info("FacelessItems habilitado con " + customItemManager.getItemCount() + " items cargados.");
         } catch (Exception e) {
             getLogger().severe("Error crítico en onEnable: " + e.getMessage());
             e.printStackTrace();
+            getServer().getPluginManager().disablePlugin(this); // Disable plugin on critical error
         }
     }
 
-
     @Override
     public void onDisable() {
-        getLogger().info("FacelessItems deshabilitado.");
         ShadowCloneEffect.cleanUpClones();
+        getLogger().info("FacelessItems deshabilitado.");
     }
 
     public static FacelessItems getInstance() {
@@ -64,5 +68,10 @@ public class FacelessItems extends JavaPlugin {
 
     public RarityManager getRarityManager() {
         return rarityManager;
+    }
+
+    // 4. Add a getter for the CooldownManager
+    public CooldownManager getCooldownManager() {
+        return cooldownManager;
     }
 }
