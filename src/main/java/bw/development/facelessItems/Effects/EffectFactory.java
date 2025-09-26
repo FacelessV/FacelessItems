@@ -208,6 +208,12 @@ public class EffectFactory {
                 double strength = getSafeDouble(properties.get("strength"), 1.5);
                 yield new GrapplingHookEffect(strength, conditions, cooldown, cooldownId);
             }
+            case "EXPLOSION" -> {
+                float power = (float) getSafeDouble(properties.get("power"), 2.0);
+                boolean setFire = (boolean) properties.getOrDefault("set_fire", false);
+                boolean breakBlocks = (boolean) properties.getOrDefault("break_blocks", false);
+                yield new ExplosionEffect(power, setFire, breakBlocks, target, conditions, cooldown, cooldownId);
+            }
             default -> null;
         };
     }
