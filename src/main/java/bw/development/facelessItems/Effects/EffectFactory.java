@@ -2,6 +2,7 @@ package bw.development.facelessItems.Effects;
 
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.Material;
 
 import java.util.*;
 import java.util.logging.Level;
@@ -30,6 +31,22 @@ public class EffectFactory {
         } catch (NumberFormatException e) {
             return defaultValue;
         }
+    }
+
+    private static List<Material> getSafeMaterialList(Object rawList) {
+        List<Material> materials = new ArrayList<>();
+        if (rawList instanceof List) {
+            for (Object item : (List<?>) rawList) {
+                if (item instanceof String) {
+                    try {
+                        materials.add(Material.valueOf(((String) item).toUpperCase()));
+                    } catch (IllegalArgumentException e) {
+                        // Puedes logear una advertencia si el nombre del material es inválido
+                    }
+                }
+            }
+        }
+        return materials;
     }
 
     private static Effect createEffectFromProperties(String type, Map<String, Object> properties) {
@@ -71,11 +88,13 @@ public class EffectFactory {
             case "BREAK_BLOCK" -> {
                 int radius = getSafeInt(properties.get("radius"), 1);
                 int layers = getSafeInt(properties.get("layers"), 1);
-                yield new BreakBlockEffect(radius, layers);
+                List<Material> mineableBlocks = getSafeMaterialList(properties.get("can_mine_blocks"));
+                yield new BreakBlockEffect(radius, layers, mineableBlocks);
             }
             case "VEIN_MINE" -> {
                 int maxBlocks = getSafeInt(properties.get("max_blocks"), 64);
-                yield new VeinMineEffect(maxBlocks);
+                List<Material> mineableBlocks = getSafeMaterialList(properties.get("can_mine_blocks"));
+                yield new VeinMineEffect(maxBlocks, mineableBlocks);
             }
             default -> null;
         };

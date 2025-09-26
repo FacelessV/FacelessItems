@@ -9,6 +9,7 @@ import org.bukkit.Location;
 import org.bukkit.block.BlockFace;
 import org.bukkit.util.Vector;
 
+import java.util.List;
 import java.util.Set;
 import java.util.EnumSet;
 
@@ -24,10 +25,12 @@ public class BreakBlockEffect implements Effect {
 
     private final int radius;
     private final int layers;
+    private final List<Material> mineableBlocks;
 
-    public BreakBlockEffect(int radius, int layers) {
+    public BreakBlockEffect(int radius, int layers, List<Material> mineableBlocks) {
         this.radius = radius;
         this.layers = layers;
+        this.mineableBlocks = mineableBlocks;
     }
 
     @Override
@@ -37,9 +40,12 @@ public class BreakBlockEffect implements Effect {
 
         if (player == null || block == null) return;
 
+        if (!mineableBlocks.isEmpty() && !mineableBlocks.contains(block.getType())) {
+            return;
+        }
+
         Location center = block.getLocation();
 
-        // Determinar la cara del bloque que el jugador está mirando
         Vector direction = player.getEyeLocation().getDirection();
         BlockFace face = BlockFace.SOUTH;
         if (Math.abs(direction.getX()) > Math.abs(direction.getZ())) {
@@ -47,25 +53,21 @@ public class BreakBlockEffect implements Effect {
         } else {
             face = (direction.getZ() > 0) ? BlockFace.SOUTH : BlockFace.NORTH;
         }
-
-        // Si el jugador mira hacia arriba o abajo, la cara es vertical
         if (Math.abs(direction.getY()) > Math.abs(direction.getX()) && Math.abs(direction.getY()) > Math.abs(direction.getZ())) {
             face = (direction.getY() > 0) ? BlockFace.UP : BlockFace.DOWN;
         }
 
-        // Iterar para romper los bloques
         for (int i = 0; i < layers; i++) {
             for (int x = -radius; x <= radius; x++) {
                 for (int y = -radius; y <= radius; y++) {
                     for (int z = -radius; z <= radius; z++) {
                         Location blockToBreak = center.clone();
 
-                        // Si la cara es horizontal
                         if (face == BlockFace.NORTH || face == BlockFace.SOUTH) {
                             blockToBreak.add(x, y, i * face.getModZ());
                         } else if (face == BlockFace.EAST || face == BlockFace.WEST) {
                             blockToBreak.add(i * face.getModX(), y, z);
-                        } else { // Vertical
+                        } else {
                             blockToBreak.add(x, i * face.getModY(), z);
                         }
 

@@ -8,6 +8,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.Location;
 import org.bukkit.block.BlockFace;
 
+import java.util.List;
 import java.util.Set;
 import java.util.EnumSet;
 import java.util.Queue;
@@ -25,9 +26,11 @@ public class VeinMineEffect implements Effect {
     );
 
     private final int maxBlocks;
+    private final List<Material> mineableBlocks;
 
-    public VeinMineEffect(int maxBlocks) {
+    public VeinMineEffect(int maxBlocks, List<Material> mineableBlocks) {
         this.maxBlocks = maxBlocks;
+        this.mineableBlocks = mineableBlocks;
     }
 
     @Override
@@ -36,6 +39,10 @@ public class VeinMineEffect implements Effect {
         Block startBlock = (Block) context.getData().get("broken_block");
 
         if (player == null || startBlock == null) return;
+
+        if (!mineableBlocks.isEmpty() && !mineableBlocks.contains(startBlock.getType())) {
+            return;
+        }
 
         Material originalMaterial = startBlock.getType();
 
