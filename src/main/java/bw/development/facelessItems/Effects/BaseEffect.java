@@ -20,29 +20,37 @@ public abstract class BaseEffect implements Effect {
 
     @Override
     public final void apply(EffectContext context) {
-        Player user = context.getUser();
-        if (user == null) {
-            applyEffect(context);
-            return;
-        }
+        // --- ORDEN DE OPERACIONES CORREGIDO ---
 
-        String finalCooldownId = (cooldownId != null && !cooldownId.isEmpty()) ? cooldownId : context.getItemKey();
-        CooldownManager cooldownManager = context.getPlugin().getCooldownManager();
-
-        if (cooldown > 0 && cooldownManager.isOnCooldown(user, finalCooldownId)) {
-            long remainingMillis = cooldownManager.getRemainingCooldown(user, finalCooldownId);
-            double remainingSeconds = remainingMillis / 1000.0;
-
-            user.sendMessage(ChatColor.RED + String.format("Puedes usar esta habilidad de nuevo en %.1fs.", remainingSeconds));
-            return;
-        }
-
+        // --- 1. PRIMERO, comprobamos las condiciones ---
+        // Si no se cumplen, el método termina silenciosamente.
         for (Condition condition : conditions) {
             if (!condition.check(context)) {
                 return;
             }
         }
 
+        // Si llegamos aquí, significa que TODAS las condiciones se cumplieron.
+
+        Player user = context.getUser();
+        if (user == null) {
+            // Si no hay jugador, no hay cooldowns, así que aplicamos el efecto.
+            applyEffect(context);
+            return;
+        }
+
+        // --- 2. DESPUÉS, si las condiciones pasan, comprobamos el cooldown ---
+        String finalCooldownId = (cooldownId != null && !cooldownId.isEmpty()) ? cooldownId : context.getItemKey();
+        CooldownManager cooldownManager = context.getPlugin().getCooldownManager();
+
+        if (cooldown > 0 && cooldownManager.isOnCooldown(user, finalCooldownId)) {
+            long remainingMillis = cooldownManager.getRemainingCooldown(user, finalCooldownId);
+            double remainingSeconds = remainingMillis / 1000.0;
+            user.sendMessage(ChatColor.RED + String.format("Puedes usar esta habilidad de nuevo en %.1fs.", remainingSeconds));
+            return;
+        }
+
+        // --- 3. SI TODO PASA, aplicamos el cooldown y el efecto ---
         if (cooldown > 0) {
             cooldownManager.setCooldown(user, finalCooldownId, cooldown);
         }
