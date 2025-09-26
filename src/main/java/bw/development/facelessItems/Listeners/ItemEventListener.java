@@ -73,6 +73,12 @@ public class ItemEventListener implements Listener {
     // ... (El resto de tu código, incluyendo onPlayerInteract y onBlockBreak)
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
+        // NUEVA VERIFICACIÓN: Solo continuar si la acción es un clic derecho
+        if (event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_AIR &&
+                event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) {
+            return;
+        }
+
         Player player = event.getPlayer();
         ItemStack item = event.getItem();
 
