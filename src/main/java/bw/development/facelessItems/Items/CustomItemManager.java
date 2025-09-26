@@ -9,6 +9,10 @@ import dev.aurelium.auraskills.api.AuraSkillsApi;
 import dev.aurelium.auraskills.api.stat.Stat;
 import dev.aurelium.auraskills.api.registry.GlobalRegistry;
 import dev.aurelium.auraskills.api.registry.NamespacedId;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -21,6 +25,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.io.File;
+import java.text.DecimalFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.logging.Level;
@@ -30,6 +35,7 @@ public class CustomItemManager {
     private final FacelessItems plugin;
     private final Map<String, CustomItem> customItems = new HashMap<>();
     private final AuraSkillsManager auraSkillsManager;
+    private final DecimalFormat decimalFormat = new DecimalFormat("0.##");
 
     public CustomItemManager(FacelessItems plugin) {
         this.plugin = plugin;
@@ -47,8 +53,17 @@ public class CustomItemManager {
         File[] files = itemsFolder.listFiles((dir, name) -> name.endsWith(".yml"));
         if (files == null) return;
 
-        // Leer la configuración global del lore desde config.yml
-        List<String> globalLoreConfig = plugin.getConfig().getStringList("lore-settings.global-lore");
+        ConfigurationSection loreSettings = plugin.getConfig().getConfigurationSection("lore-settings");
+        List<String> loreOrder = loreSettings != null ? loreSettings.getStringList("order") : new ArrayList<>();
+        ConfigurationSection auraSkillsLoreConfig = loreSettings != null ? loreSettings.getConfigurationSection("auraskills-lore") : null;
+
+        boolean displayStatsHeader = auraSkillsLoreConfig != null ? auraSkillsLoreConfig.getBoolean("display_header", true) : true;
+        String statsHeaderText = auraSkillsLoreConfig != null ? auraSkillsLoreConfig.getString("header_text", "&a--- Estadísticas ---") : "&a--- Estadísticas ---";
+        String statFormat = auraSkillsLoreConfig != null ? auraSkillsLoreConfig.getString("stat_format", "{color}{symbol} &r&a{amount} {name}") : "{color}{symbol} &r&a{amount} {name}";
+
+        MiniMessage miniMessage = MiniMessage.miniMessage();
+        LegacyComponentSerializer legacySerializer = LegacyComponentSerializer.legacyAmpersand();
+        PlainTextComponentSerializer plain = PlainTextComponentSerializer.plainText();
 
         for (File file : files) {
             String key = file.getName().replace(".yml", "");
@@ -93,48 +108,58 @@ public class CustomItemManager {
                     auraSkillsStats = (List<Map<String, Object>>) config.getList("auraskills.stats");
                 }
 
-                // --- NUEVA LÓGICA: CONSTRUIR EL LORE GLOBALMENTE ---
                 List<String> finalLore = new ArrayList<>();
                 AuraSkillsApi auraSkillsApi = AuraSkillsApi.get();
                 GlobalRegistry registry = (auraSkillsApi != null) ? auraSkillsApi.getGlobalRegistry() : null;
 
-                // Lore de la rareza
-                String rarityLore = (rarity != null && rarity.getLoreTag() != null && !rarity.getLoreTag().isEmpty())
-                        ? ChatColor.translateAlternateColorCodes('&', rarity.getLoreTag()) : "";
+                List<String> rarityLore = new ArrayList<>();
+                if (rarity != null && rarity.getLoreTag() != null && !rarity.getLoreTag().isEmpty()) {
+                    rarityLore.add(ChatColor.translateAlternateColorCodes('&', rarity.getLoreTag()));
+                }
 
-                // Lore de las estadísticas
                 List<String> statsLore = new ArrayList<>();
                 if (registry != null && !auraSkillsStats.isEmpty()) {
+                    if (displayStatsHeader) {
+                        statsLore.add(ChatColor.translateAlternateColorCodes('&', statsHeaderText));
+                    }
                     for (Map<String, Object> statBoost : auraSkillsStats) {
                         String statName = (String) statBoost.get("stat");
                         Object amountObj = statBoost.get("amount");
                         Stat stat = registry.getStat(NamespacedId.of("auraskills", statName.toLowerCase()));
                         if (stat != null && amountObj instanceof Number) {
                             String sign = (((Number) amountObj).doubleValue() >= 0) ? "+" : "";
-                            String statLine = ChatColor.translateAlternateColorCodes('&', "&7" + sign + ((Number) amountObj).doubleValue() + " " + stat.getDisplayName(Locale.getDefault()));
-                            statsLore.add(statLine);
+                            String formattedAmount = formatNumber(((Number) amountObj).doubleValue());
+
+                            String statColor = miniToLegacyColor(stat.getColor(Locale.getDefault()));
+                            String rawSymbol = stripAllFormatting(stat.getSymbol(Locale.getDefault()));
+
+                            String displayNameTranslated = stat.getDisplayName(Locale.forLanguageTag("es"));
+
+                            // Reemplazos en el formato
+                            String line = statFormat
+                                    .replace("{color}", statColor)
+                                    .replace("{symbol}", rawSymbol)
+                                    .replace("{amount}", sign + formattedAmount)
+                                    .replace("{name}", displayNameTranslated);
+
+                            statsLore.add(ChatColor.translateAlternateColorCodes('&', line));
                         }
                     }
                 }
 
-                // Construir el lore final
-                for (String line : globalLoreConfig) {
-                    String processedLine = line;
-                    processedLine = processedLine.replace("{rarity}", rarityLore);
-                    processedLine = processedLine.replace("{original-lore}", String.join("\n", originalLore));
-                    processedLine = processedLine.replace("{auraskills-stats}", String.join("\n", statsLore));
-
-                    if (processedLine.contains("{original-lore}")) {
-                        for (String l : originalLore) finalLore.add(l);
-                    } else if (processedLine.contains("{auraskills-stats}")) {
-                        for (String l : statsLore) finalLore.add(l);
+                for (String placeholder : loreOrder) {
+                    if (placeholder.equals("{rarity}")) {
+                        finalLore.addAll(rarityLore);
+                    } else if (placeholder.equals("{original_lore}")) {
+                        finalLore.addAll(originalLore);
+                    } else if (placeholder.equals("{auraskills_stats}")) {
+                        finalLore.addAll(statsLore);
                     } else {
-                        finalLore.add(ChatColor.translateAlternateColorCodes('&', processedLine));
+                        finalLore.add(ChatColor.translateAlternateColorCodes('&', placeholder));
                     }
                 }
 
                 meta.setLore(finalLore);
-                // --- FIN DE LA LÓGICA DEL LORE ---
 
                 if (config.isConfigurationSection("enchantments")) {
                     for (String enchKey : config.getConfigurationSection("enchantments").getKeys(false)) {
@@ -154,12 +179,10 @@ public class CustomItemManager {
                 if (propertiesSection != null) {
                     List<String> hideFlags = propertiesSection.getStringList("hide-flags");
                     if (!hideFlags.isEmpty()) {
-                        plugin.getLogger().info("Ocultando flags para el item " + key + ": " + hideFlags.toString());
                         for (String flagName : hideFlags) {
                             try {
                                 ItemFlag flag = ItemFlag.valueOf(flagName.toUpperCase());
                                 meta.addItemFlags(flag);
-                                plugin.getLogger().info("   - Flag " + flag.name() + " oculta con éxito.");
                             } catch (IllegalArgumentException e) {
                                 plugin.getLogger().warning("Flag desconocida en item " + key + ": " + flagName);
                             }
@@ -185,7 +208,6 @@ public class CustomItemManager {
                         Object raw = effectsSection.get(trigger);
                         List<Effect> parsedEffects = EffectFactory.parseTriggerEffects(raw);
                         if (!parsedEffects.isEmpty()) {
-                            plugin.getLogger().info("Cargados " + parsedEffects.size() + " efectos para trigger " + trigger + " en item " + key);
                             customItem.setEffectsForTrigger(trigger, parsedEffects);
                         }
                     }
@@ -199,15 +221,12 @@ public class CustomItemManager {
         plugin.getLogger().info("Cargados " + customItems.size() + " ítems personalizados.");
     }
 
-    private String formatStatName(String name) {
-        String[] parts = name.split("_");
-        StringBuilder formattedName = new StringBuilder();
-        for (String part : parts) {
-            if (!part.isEmpty()) {
-                formattedName.append(part.substring(0, 1).toUpperCase()).append(part.substring(1).toLowerCase()).append(" ");
-            }
+
+    private String formatNumber(double number) {
+        if (number == Math.floor(number)) {
+            return String.valueOf((int) number);
         }
-        return formattedName.toString().trim();
+        return decimalFormat.format(number);
     }
 
     public CustomItem getCustomItemByKey(String key) {
@@ -229,4 +248,36 @@ public class CustomItemManager {
         }
         return null;
     }
+
+    // Convierte tags de MiniMessage (<red>) a códigos legacy (&c)
+    private String miniToLegacyColor(String mini) {
+        if (mini == null) return "";
+        switch (mini.toLowerCase(Locale.ROOT)) {
+            case "<red>": return "&c";
+            case "<green>": return "&a";
+            case "<blue>": return "&9";
+            case "<yellow>": return "&e";
+            case "<dark_purple>": return "&5";
+            case "<light_purple>": return "&d";
+            case "<aqua>": return "&b";
+            case "<dark_aqua>": return "&3";
+            case "<gold>": return "&6";
+            case "<gray>": return "&7";
+            case "<dark_gray>": return "&8";
+            case "<black>": return "&0";
+            case "<white>": return "&f";
+            default: return "";
+        }
+    }
+
+    // Limpia cualquier formato (&c, &o, <red>, etc.) y deja solo el texto plano
+    private String stripAllFormatting(String input) {
+        if (input == null) return "";
+        // quita tags de MiniMessage como <red>, <italic>
+        String noMiniMessage = input.replaceAll("<.*?>", "");
+        // quita códigos de color Bukkit (&a, &5, etc.)
+        return ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', noMiniMessage));
+    }
+
+
 }
