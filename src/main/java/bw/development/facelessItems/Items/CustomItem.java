@@ -3,7 +3,6 @@ package bw.development.facelessItems.Items;
 import bw.development.facelessItems.Effects.Effect;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.inventory.ItemStack;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -15,11 +14,13 @@ public class CustomItem {
     private final ItemStack itemStack;
     private final FileConfiguration config;
     private final Map<String, List<Effect>> effectsByTrigger = new HashMap<>();
+    private final List<Map<String, Object>> auraSkillsStats; // <-- NUEVO CAMPO
 
-    public CustomItem(String key, ItemStack itemStack, FileConfiguration config) {
+    public CustomItem(String key, ItemStack itemStack, FileConfiguration config, List<Map<String, Object>> auraSkillsStats) {
         this.key = key;
         this.itemStack = itemStack;
         this.config = config;
+        this.auraSkillsStats = auraSkillsStats;
     }
 
     public String getKey() {
@@ -38,8 +39,11 @@ public class CustomItem {
         effectsByTrigger.put(trigger, effects);
     }
 
-    // Change this method to use getOrDefault
     public List<Effect> getEffects(String trigger) {
         return effectsByTrigger.getOrDefault(trigger, Collections.emptyList());
+    }
+
+    public List<Map<String, Object>> getAuraSkillsStats() {
+        return auraSkillsStats;
     }
 }

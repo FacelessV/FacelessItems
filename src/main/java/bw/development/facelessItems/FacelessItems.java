@@ -9,12 +9,8 @@ import bw.development.facelessItems.Listeners.ItemEventListener;
 import bw.development.facelessItems.Rarity.RarityManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.HashSet;
-import java.util.Objects;
-import java.util.UUID;
-
 public class FacelessItems extends JavaPlugin {
-    private static FacelessItems instance; // <-- NUEVO CAMPO ESTATICO
+    private static FacelessItems instance;
     private CustomItemManager customItemManager;
     private RarityManager rarityManager;
 
@@ -25,16 +21,17 @@ public class FacelessItems extends JavaPlugin {
             this.rarityManager = new RarityManager(this);
             this.rarityManager.loadRarities();
 
+            // El CustomItemManager ahora se encarga de instanciar AuraSkillsManager
             this.customItemManager = new CustomItemManager(this);
             this.customItemManager.loadItems();
 
-            getServer().getPluginManager().registerEvents(new ItemEventListener(this), this);
+            getServer().getPluginManager().registerEvents(new ItemEventListener(this, customItemManager), this);
 
             if (getCommand("giveitem") == null) {
                 getLogger().severe("El comando 'giveitem' no está registrado en plugin.yml!");
             } else {
-                getCommand("giveitem").setExecutor(new GiveItemCommand(this));
-                this.getCommand("giveitem").setTabCompleter(new GiveItemTabCompleter(this));
+                getCommand("giveitem").setExecutor(new GiveItemCommand(this, customItemManager));
+                this.getCommand("giveitem").setTabCompleter(new GiveItemTabCompleter(this, customItemManager));
             }
 
             if (getCommand("facelessitems") == null) {
@@ -58,7 +55,6 @@ public class FacelessItems extends JavaPlugin {
         ShadowCloneEffect.cleanUpClones();
     }
 
-    // <-- NUEVO METODO
     public static FacelessItems getInstance() {
         return instance;
     }
@@ -70,5 +66,4 @@ public class FacelessItems extends JavaPlugin {
     public RarityManager getRarityManager() {
         return rarityManager;
     }
-
 }

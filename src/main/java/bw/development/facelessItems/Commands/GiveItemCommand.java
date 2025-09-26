@@ -2,6 +2,7 @@ package bw.development.facelessItems.Commands;
 
 import bw.development.facelessItems.FacelessItems;
 import bw.development.facelessItems.Items.CustomItem;
+import bw.development.facelessItems.Items.CustomItemManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
@@ -12,9 +13,11 @@ import org.bukkit.entity.Player;
 public class GiveItemCommand implements CommandExecutor {
 
     private final FacelessItems plugin;
+    private final CustomItemManager customItemManager;
 
-    public GiveItemCommand(FacelessItems plugin) {
+    public GiveItemCommand(FacelessItems plugin, CustomItemManager customItemManager) {
         this.plugin = plugin;
+        this.customItemManager = customItemManager;
     }
 
     @Override
@@ -38,7 +41,7 @@ public class GiveItemCommand implements CommandExecutor {
 
         String itemKey = args[1].toLowerCase();
 
-        CustomItem customItem = plugin.getCustomItemManager().getCustomItemByKey(itemKey);
+        CustomItem customItem = customItemManager.getCustomItemByKey(itemKey);
         if (customItem == null) {
             sender.sendMessage(ChatColor.RED + "El ítem '" + itemKey + "' no existe.");
             return true;

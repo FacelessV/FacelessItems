@@ -2,6 +2,7 @@ package bw.development.facelessItems.Commands;
 
 import bw.development.facelessItems.FacelessItems;
 import bw.development.facelessItems.Items.CustomItem;
+import bw.development.facelessItems.Items.CustomItemManager;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -15,9 +16,11 @@ import java.util.stream.Collectors;
 public class GiveItemTabCompleter implements TabCompleter {
 
     private final FacelessItems plugin;
+    private final CustomItemManager customItemManager;
 
-    public GiveItemTabCompleter(FacelessItems plugin) {
+    public GiveItemTabCompleter(FacelessItems plugin, CustomItemManager customItemManager) {
         this.plugin = plugin;
+        this.customItemManager = customItemManager;
     }
 
     @Override
@@ -33,7 +36,7 @@ public class GiveItemTabCompleter implements TabCompleter {
 
         if (args.length == 2) {
             // Sugerir las claves de los ítems personalizados
-            return plugin.getCustomItemManager().getAllCustomItems().stream()
+            return customItemManager.getAllCustomItems().stream()
                     .map(CustomItem::getKey)
                     .collect(Collectors.toList());
         }

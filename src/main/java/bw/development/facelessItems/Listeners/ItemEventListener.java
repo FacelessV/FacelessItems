@@ -4,6 +4,7 @@ import bw.development.facelessItems.FacelessItems;
 import bw.development.facelessItems.Items.CustomItem;
 import bw.development.facelessItems.Effects.Effect;
 import bw.development.facelessItems.Effects.EffectContext;
+import bw.development.facelessItems.Items.CustomItemManager;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
@@ -25,17 +26,18 @@ import java.util.Map;
 public class ItemEventListener implements Listener {
 
     private final FacelessItems plugin;
-    private boolean isApplyingCustomDamage = false; // <-- NUEVA BANDERA
+    private final CustomItemManager customItemManager;
+    private boolean isApplyingCustomDamage = false;
 
-    public ItemEventListener(FacelessItems plugin) {
+    public ItemEventListener(FacelessItems plugin, CustomItemManager customItemManager) {
         this.plugin = plugin;
+        this.customItemManager = customItemManager;
     }
 
     @EventHandler
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player player)) return;
 
-        // Si ya estamos aplicando daño personalizado, salimos para evitar el bucle.
         if (isApplyingCustomDamage) {
             return;
         }
@@ -47,14 +49,14 @@ public class ItemEventListener implements Listener {
         ItemStack weapon = player.getInventory().getItemInMainHand();
         if (weapon == null || weapon.getType().isAir()) return;
 
-        CustomItem customItem = plugin.getCustomItemManager().getCustomItemByItemStack(weapon);
+        CustomItem customItem = customItemManager.getCustomItemByItemStack(weapon);
         if (customItem == null) return;
 
         List<Effect> effects = customItem.getEffects("on_hit");
         if (effects.isEmpty()) return;
 
         try {
-            isApplyingCustomDamage = true; // Establecemos la bandera en true
+            isApplyingCustomDamage = true;
 
             Entity target = event.getEntity();
             EffectContext context = new EffectContext(
@@ -68,14 +70,12 @@ public class ItemEventListener implements Listener {
                 effect.apply(context);
             }
         } finally {
-            isApplyingCustomDamage = false; // Nos aseguramos de que siempre se restablezca la bandera
+            isApplyingCustomDamage = false;
         }
     }
 
-    // ... (El resto de tu código, incluyendo onPlayerInteract y onBlockBreak)
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
-        // NUEVA VERIFICACIÓN: Solo continuar si la acción es un clic derecho
         if (event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_AIR &&
                 event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) {
             return;
@@ -86,7 +86,7 @@ public class ItemEventListener implements Listener {
 
         if (item == null || item.getType().isAir()) return;
 
-        CustomItem customItem = plugin.getCustomItemManager().getCustomItemByItemStack(item);
+        CustomItem customItem = customItemManager.getCustomItemByItemStack(item);
         if (customItem == null) return;
 
         List<Effect> effects = customItem.getEffects("on_use");
@@ -109,13 +109,12 @@ public class ItemEventListener implements Listener {
         Player player = event.getPlayer();
         ItemStack item = player.getInventory().getItemInMainHand();
 
-        CustomItem customItem = plugin.getCustomItemManager().getCustomItemByItemStack(item);
+        CustomItem customItem = customItemManager.getCustomItemByItemStack(item);
         if (customItem == null) return;
 
         List<Effect> effects = customItem.getEffects("on_mine");
         if (effects.isEmpty()) return;
 
-        // Crear el contexto para el efecto
         Map<String, Object> data = new HashMap<>();
         data.put("broken_block", event.getBlock());
 
@@ -138,7 +137,7 @@ public class ItemEventListener implements Listener {
 
         if (item == null || item.getType().isAir()) return;
 
-        CustomItem customItem = plugin.getCustomItemManager().getCustomItemByItemStack(item);
+        CustomItem customItem = customItemManager.getCustomItemByItemStack(item);
         if (customItem == null) return;
 
         List<Effect> effects = customItem.getEffects("on_fish");

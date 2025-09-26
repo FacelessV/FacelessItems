@@ -25,9 +25,11 @@ public class CustomItemManager {
 
     private final FacelessItems plugin;
     private final Map<String, CustomItem> customItems = new HashMap<>();
+    private final AuraSkillsManager auraSkillsManager;
 
     public CustomItemManager(FacelessItems plugin) {
         this.plugin = plugin;
+        this.auraSkillsManager = new AuraSkillsManager();
     }
 
     public void loadItems() {
@@ -83,6 +85,11 @@ public class CustomItemManager {
                     lore.add(0, ChatColor.translateAlternateColorCodes('&', rarity.getLoreTag()));
                 }
 
+                List<Map<String, Object>> auraSkillsStats = new ArrayList<>();
+                if (config.isList("auraskills.stats")) {
+                    auraSkillsStats = (List<Map<String, Object>>) config.getList("auraskills.stats");
+                }
+
                 meta.setLore(lore);
 
                 if (config.isConfigurationSection("enchantments")) {
@@ -124,7 +131,9 @@ public class CustomItemManager {
                 meta.getPersistentDataContainer().set(idKey, PersistentDataType.STRING, key);
                 itemStack.setItemMeta(meta);
 
-                CustomItem customItem = new CustomItem(key, itemStack, config);
+                ItemStack finalItem = auraSkillsManager.applyStatsToItem(itemStack, auraSkillsStats, key);
+
+                CustomItem customItem = new CustomItem(key, finalItem, config, auraSkillsStats);
 
                 if (config.isConfigurationSection("effects")) {
                     ConfigurationSection effectsSection = config.getConfigurationSection("effects");
@@ -145,19 +154,15 @@ public class CustomItemManager {
         }
         plugin.getLogger().info("Cargados " + customItems.size() + " ítems personalizados.");
     }
-
     public CustomItem getCustomItemByKey(String key) {
         return customItems.get(key);
     }
-
     public Collection<CustomItem> getAllCustomItems() {
         return customItems.values();
     }
-
     public int getItemCount() {
         return customItems.size();
     }
-
     public CustomItem getCustomItemByItemStack(ItemStack itemStack) {
         if (itemStack == null || !itemStack.hasItemMeta()) return null;
         ItemMeta meta = itemStack.getItemMeta();
