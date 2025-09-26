@@ -233,6 +233,27 @@ public class EffectFactory {
                 boolean breakBlocks = (boolean) properties.getOrDefault("break_blocks", false);
                 yield new ExplosionEffect(power, setFire, breakBlocks, target, conditions, cooldown, cooldownId);
             }
+            case "CHAIN" -> {
+                List<Effect> effectsInChain = new ArrayList<>();
+                int delay = getSafeInt(properties.get("delay"), 0);
+
+                Object rawChainedEffects = properties.get("effects");
+                if (rawChainedEffects instanceof List) {
+                    effectsInChain = parseTriggerEffects(rawChainedEffects);
+                } else if (rawChainedEffects instanceof ConfigurationSection) {
+                    effectsInChain = parseEffects((ConfigurationSection) rawChainedEffects);
+                }
+
+                // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
+                // 1. Creamos una nueva lista del tipo correcto (BaseEffect).
+                List<BaseEffect> baseEffectsInChain = effectsInChain.stream()
+                        .filter(BaseEffect.class::isInstance) // Nos aseguramos de que cada efecto sea un BaseEffect
+                        .map(BaseEffect.class::cast)         // Convertimos cada efecto a BaseEffect
+                        .collect(Collectors.toList());       // Lo guardamos en la nueva lista
+
+                // 2. Usamos la nueva lista (baseEffectsInChain) en el constructor.
+                yield new ChainEffect(baseEffectsInChain, delay, conditions, cooldown, cooldownId);
+            }
             default -> null;
         };
     }
