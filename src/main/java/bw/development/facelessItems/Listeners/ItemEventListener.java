@@ -12,7 +12,9 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
+import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.Collections;
@@ -122,6 +124,31 @@ public class ItemEventListener implements Listener {
                 null,
                 event,
                 data
+        );
+
+        for (Effect effect : effects) {
+            effect.apply(context);
+        }
+    }
+
+    @EventHandler
+    public void onPlayerFish(PlayerFishEvent event) {
+        Player player = event.getPlayer();
+        ItemStack item = event.getPlayer().getInventory().getItem(EquipmentSlot.HAND);
+
+        if (item == null || item.getType().isAir()) return;
+
+        CustomItem customItem = plugin.getCustomItemManager().getCustomItemByItemStack(item);
+        if (customItem == null) return;
+
+        List<Effect> effects = customItem.getEffects("on_fish");
+        if (effects.isEmpty()) return;
+
+        EffectContext context = new EffectContext(
+                player,
+                null,
+                event,
+                Collections.emptyMap()
         );
 
         for (Effect effect : effects) {

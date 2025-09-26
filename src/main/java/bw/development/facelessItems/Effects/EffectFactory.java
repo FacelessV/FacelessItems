@@ -135,6 +135,10 @@ public class EffectFactory {
 
                 yield new ShadowCloneEffect(duration, range, particleType, soundEffect);
             }
+            case "GRAPPLING_HOOK" -> {
+                double strength = getSafeDouble(properties.get("strength"), 1.5);
+                yield new GrapplingHookEffect(strength);
+            }
             default -> null;
         };
     }
