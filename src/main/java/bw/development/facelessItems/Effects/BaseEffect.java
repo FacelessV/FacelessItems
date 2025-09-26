@@ -22,12 +22,10 @@ public abstract class BaseEffect implements Effect {
     public final void apply(EffectContext context) {
         Player user = context.getUser();
         if (user == null) {
-            // Si no hay usuario, no puede haber cooldown, así que se aplica directamente
             applyEffect(context);
             return;
         }
 
-        // --- 1. COMPROBACIÓN DEL COOLDOWN ---
         String finalCooldownId = (cooldownId != null && !cooldownId.isEmpty()) ? cooldownId : context.getItemKey();
         CooldownManager cooldownManager = context.getPlugin().getCooldownManager();
 
@@ -35,19 +33,16 @@ public abstract class BaseEffect implements Effect {
             long remainingMillis = cooldownManager.getRemainingCooldown(user, finalCooldownId);
             double remainingSeconds = remainingMillis / 1000.0;
 
-            // Este es el único mensaje que se queda
             user.sendMessage(ChatColor.RED + String.format("Puedes usar esta habilidad de nuevo en %.1fs.", remainingSeconds));
             return;
         }
 
-        // --- 2. COMPROBACIÓN DE CONDICIONES ---
         for (Condition condition : conditions) {
             if (!condition.check(context)) {
                 return;
             }
         }
 
-        // --- 3. INICIO DEL COOLDOWN Y APLICACIÓN DEL EFECTO ---
         if (cooldown > 0) {
             cooldownManager.setCooldown(user, finalCooldownId, cooldown);
         }

@@ -1,7 +1,6 @@
 package bw.development.facelessItems.Effects;
 
 import bw.development.facelessItems.Effects.Conditions.Condition;
-import org.bukkit.ChatColor;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Entity;
@@ -19,11 +18,7 @@ public abstract class TargetedEffect extends BaseEffect {
 
     @Override
     protected void applyEffect(EffectContext context) {
-        // --- MENSAJE DE DEPURACIÓN CRÍTICO ---
-        if (context.getUser() != null) {
-            context.getUser().sendMessage(ChatColor.GOLD + "" + ChatColor.BOLD + "DEBUG: ¡LA CLASE TargetedEffect ACTUALIZADA ESTÁ FUNCIONANDO!");
-        }
-
+        // El mensaje de depuración dorado ha sido eliminado de aquí.
         LivingEntity finalTarget = switch (targetType) {
             case PLAYER -> context.getUser();
             case ENTITY -> {
