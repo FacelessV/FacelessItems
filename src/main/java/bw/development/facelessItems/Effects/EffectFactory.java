@@ -96,6 +96,12 @@ public class EffectFactory {
                 List<Material> mineableBlocks = getSafeMaterialList(properties.get("can_mine_blocks"));
                 yield new VeinMineEffect(maxBlocks, mineableBlocks);
             }
+            case "CHAIN_LIGHTNING" -> {
+                int chainCount = getSafeInt(properties.get("chain_count"), 3);
+                double damage = getSafeDouble(properties.get("damage"), 5.0);
+                double range = getSafeDouble(properties.get("range"), 5.0);
+                yield new ChainLightningEffect(chainCount, damage, range, target);
+            }
             default -> null;
         };
     }
