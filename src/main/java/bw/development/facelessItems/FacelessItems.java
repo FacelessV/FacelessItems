@@ -2,6 +2,7 @@ package bw.development.facelessItems;
 
 import bw.development.facelessItems.Commands.FacelessItemsCommand;
 import bw.development.facelessItems.Commands.GiveItemCommand;
+import bw.development.facelessItems.Commands.GiveItemTabCompleter;
 import bw.development.facelessItems.Items.CustomItemManager;
 import bw.development.facelessItems.Listeners.ItemEventListener;
 import bw.development.facelessItems.Rarity.RarityManager;
@@ -29,6 +30,7 @@ public class FacelessItems extends JavaPlugin {
                 getLogger().severe("El comando 'giveitem' no está registrado en plugin.yml!");
             } else {
                 getCommand("giveitem").setExecutor(new GiveItemCommand(this));
+                this.getCommand("giveitem").setTabCompleter(new GiveItemTabCompleter(this));
             }
 
             if (getCommand("facelessitems") == null) {
