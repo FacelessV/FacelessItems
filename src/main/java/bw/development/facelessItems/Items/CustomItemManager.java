@@ -23,6 +23,7 @@ import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.potion.PotionEffectType;
 
 import java.io.File;
 import java.text.DecimalFormat;
@@ -89,6 +90,38 @@ public class CustomItemManager {
                 ItemStack itemStack = new ItemStack(material);
                 ItemMeta meta = itemStack.getItemMeta();
                 if (meta == null) continue;
+
+                // Comprueba si el ítem es una poción y si tiene la sección 'potion-meta'
+                if (meta instanceof org.bukkit.inventory.meta.PotionMeta potionMeta && config.isConfigurationSection("potion-meta")) {
+                    ConfigurationSection potionSection = config.getConfigurationSection("potion-meta");
+
+                    // Aplicar color personalizado si está definido
+                    if (potionSection.isString("color")) {
+                        String hexColor = potionSection.getString("color").replace("#", "");
+                        try {
+                            java.awt.Color awtColor = java.awt.Color.decode("0x" + hexColor);
+                            potionMeta.setColor(org.bukkit.Color.fromRGB(awtColor.getRed(), awtColor.getGreen(), awtColor.getBlue()));
+                        } catch (NumberFormatException e) {
+                            plugin.getLogger().warning("Color hexadecimal inválido '" + hexColor + "' en el ítem " + key);
+                        }
+                    }
+
+                    // Aplicar efectos visuales personalizados si están definidos
+                    if (potionSection.isList("custom-effects")) {
+                        List<Map<?, ?>> effectsList = potionSection.getMapList("custom-effects");
+                        for (Map<?, ?> effectMap : effectsList) {
+                            String typeName = (String) effectMap.get("type");
+                            PotionEffectType effectType = PotionEffectType.getByName(typeName.toUpperCase());
+
+                            if (effectType != null) {
+                                int duration = EffectFactory.getSafeInt(effectMap.get("duration"), 200);
+                                int amplifier = EffectFactory.getSafeInt(effectMap.get("amplifier"), 0);
+                                // El 'true' al final sobreescribe efectos existentes del mismo tipo
+                                potionMeta.addCustomEffect(new org.bukkit.potion.PotionEffect(effectType, duration, amplifier), true);
+                            }
+                        }
+                    }
+                }
 
                 String rarityId = config.getString("rarity", "COMMON").toUpperCase();
                 RarityManager rarityManager = plugin.getRarityManager();

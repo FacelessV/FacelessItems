@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 
 public class EffectFactory {
 
-    private static double getSafeDouble(Object raw, double defaultValue) {
+    public static double getSafeDouble(Object raw, double defaultValue) {
         if (raw == null) return defaultValue;
         try {
             if (raw instanceof Number) {
@@ -27,7 +27,7 @@ public class EffectFactory {
         }
     }
 
-    private static int getSafeInt(Object raw, int defaultValue) {
+    public static int getSafeInt(Object raw, int defaultValue) {
         if (raw == null) return defaultValue;
         try {
             if (raw instanceof Number) {
@@ -266,6 +266,21 @@ public class EffectFactory {
                 double percentage = getSafeDouble(properties.get("percentage"), 10.0); // 10% por defecto
                 // El robo de vida siempre se aplica al jugador
                 yield new LifestealEffect(percentage, EffectTarget.PLAYER, conditions, cooldown, cooldownId);
+            }
+            case "CURE_ZOMBIFICATION" -> {
+                int duration = getSafeInt(properties.get("cure_duration"), 200); // 10 segundos por defecto
+                yield new CureZombificationEffect(duration, target, conditions, cooldown, cooldownId);
+            }
+            case "DASH" -> {
+                double strength = getSafeDouble(properties.get("strength"), 2.0);
+                double verticalBoost = getSafeDouble(properties.get("vertical_boost"), 0.2);
+                yield new DashEffect(strength, verticalBoost, conditions, cooldown, cooldownId);
+            }
+
+            case "PULL" -> {
+                double radius = getSafeDouble(properties.get("radius"), 8.0);
+                double strength = getSafeDouble(properties.get("strength"), 1.5);
+                yield new PullEffect(radius, strength, target, conditions, cooldown, cooldownId);
             }
 
             default -> null;

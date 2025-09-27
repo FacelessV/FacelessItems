@@ -6,16 +6,20 @@ import bw.development.facelessItems.Effects.Effect;
 import bw.development.facelessItems.Effects.EffectContext;
 import bw.development.facelessItems.Items.CustomItemManager;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.ThrownPotion;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.entity.PotionSplashEvent;
 import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.projectiles.ProjectileSource;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -235,6 +239,52 @@ public class ItemEventListener implements Listener {
         // 5. Aplicamos los efectos
         for (Effect effect : effects) {
             effect.apply(context);
+        }
+    }
+
+    @EventHandler
+    public void onPotionSplash(PotionSplashEvent event) {
+        ThrownPotion potion = event.getPotion();
+        ProjectileSource shooter = potion.getShooter();
+
+        // 1. Solo nos interesa si la poción fue lanzada por un jugador
+        if (!(shooter instanceof Player thrower)) {
+            return;
+        }
+
+        // 2. Obtenemos el ítem (la poción) que se lanzó
+        ItemStack potionItem = potion.getItem();
+        CustomItem customItem = customItemManager.getCustomItemByItemStack(potionItem);
+        if (customItem == null) {
+            return;
+        }
+
+        // 3. Obtenemos los efectos para el trigger 'on_potion_splash'
+        List<Effect> effects = customItem.getEffects("on_potion_splash");
+        if (effects.isEmpty()) {
+            return;
+        }
+
+        // 4. ¡Bucle clave! Iteramos sobre CADA entidad afectada por la poción
+        for (LivingEntity affectedEntity : event.getAffectedEntities()) {
+
+            // Creamos un contexto individual para cada entidad afectada
+            Map<String, Object> data = new HashMap<>();
+            data.put("intensity", event.getIntensity(affectedEntity)); // Guardamos la intensidad del efecto
+
+            EffectContext context = new EffectContext(
+                    thrower,          // El 'user' es el jugador que lanzó la poción
+                    affectedEntity,   // El 'targetEntity' es la entidad afectada actual
+                    event,
+                    data,
+                    customItem.getKey(),
+                    plugin
+            );
+
+            // Aplicamos todos los efectos a esta entidad específica
+            for (Effect effect : effects) {
+                effect.apply(context);
+            }
         }
     }
 }
