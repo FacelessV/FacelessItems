@@ -326,11 +326,12 @@ public class EffectFactory {
             case "MULTI_SHOT" -> {
                 int arrowCount = getSafeInt(properties.get("arrow_count"), 3);
                 double spread = getSafeDouble(properties.get("spread"), 10.0);
-                // Leemos los nuevos booleanos, con 'true' como valor por defecto
-                boolean propagate = (boolean) properties.getOrDefault("propagate_arrow_effects", true);
+                // Leemos los booleanos
+                boolean propagateBow = (boolean) properties.getOrDefault("propagate_bow_effects", true); // <-- NUEVO
+                boolean propagateArrow = (boolean) properties.getOrDefault("propagate_arrow_effects", true);
                 boolean copyMeta = (boolean) properties.getOrDefault("copy_custom_arrow_meta", true);
 
-                yield new MultiShotEffect(arrowCount, spread, propagate, copyMeta, conditions, cooldown, cooldownId);
+                yield new MultiShotEffect(arrowCount, spread, propagateBow, propagateArrow, copyMeta, conditions, cooldown, cooldownId);
             }
 
             case "SMELT" -> {

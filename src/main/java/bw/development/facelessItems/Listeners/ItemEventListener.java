@@ -309,34 +309,26 @@ public class ItemEventListener implements Listener {
         ItemStack arrowItem = event.getConsumable();
         CustomItem customArrow = customItemManager.getCustomItemByItemStack(arrowItem);
 
-        // Aplicamos la apariencia visual a la flecha original
-        if (customArrow != null && arrowItem.getItemMeta() instanceof PotionMeta) {
-            PotionMeta originalMeta = (PotionMeta) arrowItem.getItemMeta();
-            if (originalMeta.hasCustomEffects()) {
-                for (org.bukkit.potion.PotionEffect pEffect : originalMeta.getCustomEffects()) {
-                    arrow.addCustomEffect(pEffect, true);
-                }
-            }
-            if (originalMeta.hasColor()) {
-                arrow.setColor(originalMeta.getColor());
-            }
-        }
+        // Always apply the visual meta to the original arrow entity
+        copyArrowMeta(arrowItem, arrow);
 
+        // If the bow isn't custom, we might still need to tag the arrow if it's custom
         if (customBow == null) {
-            // Si el arco no es custom, solo etiquetamos la flecha si es custom y terminamos
-            tagArrow(arrow, null, arrowItem, true);
+            tagArrow(arrow, null, arrowItem, false, true); // Don't tag a bow, but always tag a custom arrow
             return;
         }
 
+        // From here, we know the bow is custom.
         MultiShotEffect multiShotEffect = customBow.getEffects("on_bow_shoot").stream()
                 .filter(MultiShotEffect.class::isInstance)
                 .map(MultiShotEffect.class::cast)
                 .findFirst().orElse(null);
 
         if (multiShotEffect != null) {
+            // --- MULTI-SHOT LOGIC ---
             String cooldownId = multiShotEffect.getCooldownId() != null ? multiShotEffect.getCooldownId() : customBow.getKey();
             if (multiShotEffect.getCooldown() > 0 && plugin.getCooldownManager().isOnCooldown(player, cooldownId)) {
-                // ... (lógica de cooldown)
+                // ... (cooldown logic)
                 event.setCancelled(true);
                 return;
             }
@@ -345,7 +337,7 @@ public class ItemEventListener implements Listener {
             boolean conditionsMet = multiShotEffect.getConditions().stream().allMatch(c -> c.check(context));
 
             if (!conditionsMet) {
-                tagArrow(arrow, customBow, arrowItem, true);
+                tagArrow(arrow, customBow, arrowItem, true, true);
                 return;
             }
 
@@ -357,12 +349,11 @@ public class ItemEventListener implements Listener {
 
             int arrowCount = multiShotEffect.arrowCount;
             double spread = multiShotEffect.spread;
-            int centerArrowIndex = (arrowCount - 1) / 2; // Índice de la flecha central
+            int centerArrowIndex = (arrowCount - 1) / 2;
 
             for (int i = 0; i < arrowCount; i++) {
                 double angle = (i - centerArrowIndex) * spread;
                 Vector rotatedDirection = player.getEyeLocation().getDirection().clone().rotateAroundY(Math.toRadians(angle));
-
                 Arrow newArrow = player.launchProjectile(Arrow.class, rotatedDirection);
                 newArrow.setPickupStatus(Arrow.PickupStatus.CREATIVE_ONLY);
 
@@ -370,18 +361,24 @@ public class ItemEventListener implements Listener {
                     copyArrowMeta(arrowItem, newArrow);
                 }
 
-                // --- ¡LÓGICA CLAVE CORREGIDA! ---
-                // La flecha central SIEMPRE se etiqueta. Las demás, solo si 'propagate' es true.
-                boolean shouldTagThisArrow = (i == centerArrowIndex) || multiShotEffect.propagateArrowEffects;
-                tagArrow(newArrow, customBow, arrowItem, shouldTagThisArrow);
+                boolean isCenterArrow = (i == centerArrowIndex);
+
+                // The bow's effects apply if it's the center arrow OR if propagate_bow_effects is true
+                boolean shouldTagBow = isCenterArrow || multiShotEffect.propagateBowEffects;
+
+                // The arrow's effects apply if it's the center arrow OR if propagate_arrow_effects is true
+                boolean shouldTagArrow = isCenterArrow || multiShotEffect.propagateArrowEffects;
+
+                tagArrow(newArrow, customBow, arrowItem, shouldTagBow, shouldTagArrow);
             }
         } else {
-            // Si el arco es custom pero no tiene MULTI_SHOT, solo etiquetamos la flecha original
-            tagArrow(arrow, customBow, arrowItem, true);
+            // --- SINGLE SHOT LOGIC ---
+            // A single shot from a custom bow always tags both.
+            tagArrow(arrow, customBow, arrowItem, true, true);
         }
     }
 
-    // Método de ayuda para copiar la apariencia, para no repetir código
+    // Helper method to copy visual properties
     private void copyArrowMeta(ItemStack originalArrowItem, Arrow newArrowEntity) {
         if (originalArrowItem != null && originalArrowItem.getItemMeta() instanceof PotionMeta) {
             PotionMeta originalMeta = (PotionMeta) originalArrowItem.getItemMeta();
@@ -396,11 +393,12 @@ public class ItemEventListener implements Listener {
         }
     }
 
-    private void tagArrow(Arrow arrow, CustomItem customBow, ItemStack arrowItem, boolean shouldTagCustomArrow) {
-        if (customBow != null) {
+    // Updated helper method to tag bow and arrow effects separately
+    private void tagArrow(Arrow arrow, CustomItem customBow, ItemStack arrowItem, boolean shouldTagBow, boolean shouldTagArrow) {
+        if (shouldTagBow && customBow != null) {
             arrow.getPersistentDataContainer().set(bowKey, PersistentDataType.STRING, customBow.getKey());
         }
-        if (shouldTagCustomArrow) {
+        if (shouldTagArrow) {
             CustomItem customArrow = customItemManager.getCustomItemByItemStack(arrowItem);
             if (customArrow != null) {
                 arrow.getPersistentDataContainer().set(arrowKey, PersistentDataType.STRING, customArrow.getKey());

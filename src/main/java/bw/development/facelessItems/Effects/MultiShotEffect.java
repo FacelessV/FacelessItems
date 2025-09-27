@@ -9,11 +9,13 @@ public class MultiShotEffect extends BaseEffect {
     public final double spread;
     public final boolean propagateArrowEffects; // <-- NUEVO
     public final boolean copyCustomArrowMeta;   // <-- NUEVO
+    public final boolean propagateBowEffects; // <-- NUEVO
 
-    public MultiShotEffect(int arrowCount, double spread, boolean propagateArrowEffects, boolean copyCustomArrowMeta, List<Condition> conditions, int cooldown, String cooldownId) {
+    public MultiShotEffect(int arrowCount, double spread, boolean propagateBowEffects, boolean propagateArrowEffects, boolean copyCustomArrowMeta, List<Condition> conditions, int cooldown, String cooldownId) {
         super(conditions, cooldown, cooldownId);
         this.arrowCount = arrowCount;
         this.spread = spread;
+        this.propagateBowEffects = propagateBowEffects; // <-- NUEVO
         this.propagateArrowEffects = propagateArrowEffects;
         this.copyCustomArrowMeta = copyCustomArrowMeta;
     }

@@ -12,6 +12,7 @@ import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class ChainLightningEffect extends TargetedEffect {
 
@@ -21,10 +22,7 @@ public class ChainLightningEffect extends TargetedEffect {
     private final Particle particleType;
     private final Sound soundEffect;
 
-    // --- CONSTRUCTOR UPDATED ---
-    // Now accepts cooldown and cooldownId
     public ChainLightningEffect(int chainCount, double damage, double range, Particle particleType, Sound soundEffect, EffectTarget target, List<Condition> conditions, int cooldown, String cooldownId) {
-        // And passes them to the parent class (TargetedEffect)
         super(target, conditions, cooldown, cooldownId);
         this.chainCount = chainCount;
         this.damage = damage;
@@ -35,13 +33,16 @@ public class ChainLightningEffect extends TargetedEffect {
 
     @Override
     protected void applyToTarget(LivingEntity target, Player user, Event event, EffectContext context) {
-        // Your excellent logic for the effect remains unchanged.
         List<LivingEntity> hitTargets = new ArrayList<>();
         hitTargets.add(target);
 
         LivingEntity currentTarget = target;
-        for (int i = 0; i < chainCount; i++) {
-            LivingEntity nextTarget = findNextTarget(currentTarget, user, hitTargets);
+        // The first hit on the initial target is already confirmed by the BaseEffect conditions.
+        // We only need to start the chain from the second link.
+        for (int i = 0; i < chainCount -1; i++) { // Note: chainCount - 1 because the first hit is the trigger
+            // --- ¡LÓGICA MEJORADA! ---
+            // Le pasamos el contexto original para que pueda comprobar las condiciones
+            LivingEntity nextTarget = findNextTarget(currentTarget, user, hitTargets, context);
 
             if (nextTarget == null) {
                 break;
@@ -57,21 +58,39 @@ public class ChainLightningEffect extends TargetedEffect {
         }
     }
 
-    private LivingEntity findNextTarget(LivingEntity startTarget, Player user, List<LivingEntity> alreadyHit) {
+    private LivingEntity findNextTarget(LivingEntity startTarget, Player user, List<LivingEntity> alreadyHit, EffectContext originalContext) {
         LivingEntity nearest = null;
         double nearestDistance = Double.MAX_VALUE;
 
         List<Entity> nearbyEntities = startTarget.getNearbyEntities(range, range, range);
 
         for (Entity entity : nearbyEntities) {
-            if (alreadyHit.contains(entity) || entity.equals(user) || !(entity instanceof LivingEntity)) {
+            if (alreadyHit.contains(entity) || entity.equals(user) || !(entity instanceof LivingEntity livingEntity)) {
                 continue;
             }
 
+            // --- ¡COMPROBACIÓN DE CONDICIONES! ---
+            // Creamos un contexto temporal para el 'posible' siguiente objetivo
+            EffectContext nextTargetContext = new EffectContext(user, livingEntity, originalContext.getBukkitEvent(), Map.of(), originalContext.getItemKey(), originalContext.getPlugin());
+
+            // Verificamos si este nuevo objetivo cumple las condiciones originales del efecto
+            boolean conditionsMet = true;
+            for (Condition condition : this.getConditions()) { // Usamos las condiciones de ESTE efecto
+                if (!condition.check(nextTargetContext)) {
+                    conditionsMet = false;
+                    break;
+                }
+            }
+
+            if (!conditionsMet) {
+                continue; // Si no cumple las condiciones, lo ignoramos
+            }
+
+            // Si cumple las condiciones, lo consideramos un objetivo válido
             double distance = entity.getLocation().distance(startTarget.getLocation());
             if (distance < nearestDistance) {
                 nearestDistance = distance;
-                nearest = (LivingEntity) entity;
+                nearest = livingEntity;
             }
         }
         return nearest;
