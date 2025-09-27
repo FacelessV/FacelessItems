@@ -254,6 +254,12 @@ public class EffectFactory {
                 // 2. Usamos la nueva lista (baseEffectsInChain) en el constructor.
                 yield new ChainEffect(baseEffectsInChain, delay, conditions, cooldown, cooldownId);
             }
+            case "LIFESTEAL" -> {
+                double percentage = getSafeDouble(properties.get("percentage"), 10.0); // 10% por defecto
+                // El robo de vida siempre se aplica al jugador
+                yield new LifestealEffect(percentage, EffectTarget.PLAYER, conditions, cooldown, cooldownId);
+            }
+
             default -> null;
         };
     }

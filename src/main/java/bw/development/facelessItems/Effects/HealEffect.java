@@ -20,7 +20,7 @@ public class HealEffect extends TargetedEffect {
     }
 
     @Override
-    protected void applyToTarget(LivingEntity target, Player user, Event event) {
+    protected void applyToTarget(LivingEntity target, Player user, Event event, EffectContext context) {
         // Your healing logic is perfect and needs no changes.
         double maxHealth = target.getMaxHealth();
         double newHealth = Math.min(target.getHealth() + amount, maxHealth);

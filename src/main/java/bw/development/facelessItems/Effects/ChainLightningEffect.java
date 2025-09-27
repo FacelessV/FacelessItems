@@ -34,7 +34,7 @@ public class ChainLightningEffect extends TargetedEffect {
     }
 
     @Override
-    protected void applyToTarget(LivingEntity target, Player user, Event event) {
+    protected void applyToTarget(LivingEntity target, Player user, Event event, EffectContext context) {
         // Your excellent logic for the effect remains unchanged.
         List<LivingEntity> hitTargets = new ArrayList<>();
         hitTargets.add(target);

@@ -25,7 +25,7 @@ public class PotionEffect extends TargetedEffect {
     }
 
     @Override
-    protected void applyToTarget(LivingEntity target, Player user, Event event) {
+    protected void applyToTarget(LivingEntity target, Player user, Event event, EffectContext context) {
         // This logic is perfect and needs no changes.
         org.bukkit.potion.PotionEffect effect = new org.bukkit.potion.PotionEffect(potionType, duration, amplifier);
         target.addPotionEffect(effect);

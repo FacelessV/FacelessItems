@@ -17,7 +17,7 @@ public class LightningEffect extends TargetedEffect {
     }
 
     @Override
-    protected void applyToTarget(LivingEntity target, Player user, Event event) {
+    protected void applyToTarget(LivingEntity target, Player user, Event event, EffectContext context) {
         // This logic is perfect and needs no changes.
         target.getWorld().strikeLightning(target.getLocation());
     }

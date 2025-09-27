@@ -18,7 +18,6 @@ public abstract class TargetedEffect extends BaseEffect {
 
     @Override
     protected void applyEffect(EffectContext context) {
-        // El mensaje de depuración dorado ha sido eliminado de aquí.
         LivingEntity finalTarget = switch (targetType) {
             case PLAYER -> context.getUser();
             case ENTITY -> {
@@ -40,11 +39,13 @@ public abstract class TargetedEffect extends BaseEffect {
         };
 
         if (finalTarget != null) {
-            applyToTarget(finalTarget, context.getUser(), context.getBukkitEvent());
+            // --- CHANGE 1: Pass 'context' to the method below ---
+            applyToTarget(finalTarget, context.getUser(), context.getBukkitEvent(), context);
         }
     }
 
-    protected abstract void applyToTarget(LivingEntity target, Player user, Event event);
+    // --- CHANGE 2: Add 'EffectContext context' to the method signature ---
+    protected abstract void applyToTarget(LivingEntity target, Player user, Event event, EffectContext context);
 
     @Override
     public abstract String getType();

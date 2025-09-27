@@ -21,7 +21,7 @@ public class ExplosionEffect extends TargetedEffect {
     }
 
     @Override
-    protected void applyToTarget(LivingEntity target, Player user, Event event) {
+    protected void applyToTarget(LivingEntity target, Player user, Event event, EffectContext context) {
         // 'target' aquí es el ORIGEN de la explosión.
         // El último parámetro (target) es la 'fuente' de la explosión,
         // lo que previene que la entidad fuente reciba daño de su propia explosión.

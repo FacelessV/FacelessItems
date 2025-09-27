@@ -16,7 +16,7 @@ public class DamageEffect extends TargetedEffect {
     }
 
     @Override
-    protected void applyToTarget(LivingEntity target, Player user, Event event) {
+    protected void applyToTarget(LivingEntity target, Player user, Event event, EffectContext context) {
         if (user == null) {
             target.damage(damage);
             return;

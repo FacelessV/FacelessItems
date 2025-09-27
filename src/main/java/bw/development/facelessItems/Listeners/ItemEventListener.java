@@ -12,6 +12,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
@@ -191,6 +192,47 @@ public class ItemEventListener implements Listener {
                 customItem.getKey(),
                 plugin
         );
+        for (Effect effect : effects) {
+            effect.apply(context);
+        }
+    }
+
+    @EventHandler
+    public void onEntityDeath(EntityDeathEvent event) {
+        // 1. Verificamos si la entidad fue asesinada por un jugador
+        Player killer = event.getEntity().getKiller();
+        if (killer == null) {
+            return;
+        }
+
+        // 2. Obtenemos el arma que usó el jugador
+        ItemStack weapon = killer.getInventory().getItemInMainHand();
+        CustomItem customItem = customItemManager.getCustomItemByItemStack(weapon);
+        if (customItem == null) {
+            return;
+        }
+
+        // 3. Obtenemos los efectos para el trigger 'on_kill'
+        List<Effect> effects = customItem.getEffects("on_kill");
+        if (effects.isEmpty()) {
+            return;
+        }
+
+        // 4. Creamos el contexto: 'user' es el asesino, 'targetEntity' es la entidad que murió
+        Map<String, Object> data = new HashMap<>();
+        data.put("dropped_exp", event.getDroppedExp());
+        // Podríamos añadir los drops aquí si quisiéramos efectos que los modifiquen
+
+        EffectContext context = new EffectContext(
+                killer,
+                event.getEntity(),
+                event,
+                data,
+                customItem.getKey(),
+                plugin
+        );
+
+        // 5. Aplicamos los efectos
         for (Effect effect : effects) {
             effect.apply(context);
         }
