@@ -133,6 +133,14 @@ public class EffectFactory {
             }
         }
 
+        if (conditionsMap.containsKey("chance")) {
+            // Usamos getSafeDouble para leer el número de forma segura
+            double probability = getSafeDouble(conditionsMap.get("chance"), 100.0); // 100% por defecto si el valor es inválido
+            if (probability > 0 && probability <= 100) {
+                conditions.add(new ChanceCondition(probability));
+            }
+        }
+
         return conditions;
     }
 
