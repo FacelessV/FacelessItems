@@ -1,12 +1,9 @@
 package bw.development.facelessItems.Listeners;
 
+import bw.development.facelessItems.Effects.*;
 import bw.development.facelessItems.Effects.Conditions.Condition;
-import bw.development.facelessItems.Effects.MessageEffect;
-import bw.development.facelessItems.Effects.MultiShotEffect;
 import bw.development.facelessItems.FacelessItems;
 import bw.development.facelessItems.Items.CustomItem;
-import bw.development.facelessItems.Effects.Effect;
-import bw.development.facelessItems.Effects.EffectContext;
 import bw.development.facelessItems.Items.CustomItemManager;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.*;
@@ -169,19 +166,34 @@ public class ItemEventListener implements Listener {
         List<Effect> effects = customItem.getEffects("on_mine");
         if (effects.isEmpty()) return;
 
-        Map<String, Object> data = new HashMap<>();
-        data.put("broken_block", event.getBlock());
+        // Buscamos si hay un efecto Smelt en la lista
+        SmeltEffect smeltEffect = effects.stream()
+                .filter(SmeltEffect.class::isInstance)
+                .map(SmeltEffect.class::cast)
+                .findFirst().orElse(null);
 
-        EffectContext context = new EffectContext(
-                player,
-                null,
-                event,
-                data,
-                customItem.getKey(),
-                plugin
-        );
+        // Buscamos y ejecutamos los efectos de minería, pasándoles el SmeltEffect si existe
         for (Effect effect : effects) {
-            effect.apply(context);
+            EffectContext context = new EffectContext(
+                    player,
+                    null, // No hay entidad objetivo en este evento
+                    event,
+                    Map.of("broken_block", event.getBlock()), // Usamos Map.of para un mapa inmutable
+                    customItem.getKey(),
+                    plugin
+            );
+
+            // Pasamos el SmeltEffect a los efectos que saben cómo usarlo
+            if (effect instanceof VeinMineEffect veinMineEffect) {
+                veinMineEffect.setSmeltModifier(smeltEffect); // Le damos el modificador
+                veinMineEffect.apply(context);
+            } else if (effect instanceof BreakBlockEffect breakBlockEffect) {
+                breakBlockEffect.setSmeltModifier(smeltEffect); // Le damos el modificador
+                breakBlockEffect.apply(context);
+            } else if (!(effect instanceof SmeltEffect)) {
+                // Ejecutamos otros efectos que no sean de minería ni el propio Smelt
+                effect.apply(context);
+            }
         }
     }
 

@@ -313,6 +313,12 @@ public class EffectFactory {
                 yield new MultiShotEffect(arrowCount, spread, propagate, copyMeta, conditions, cooldown, cooldownId);
             }
 
+            case "SMELT" -> {
+                boolean dropExperience = (boolean) properties.getOrDefault("drop_experience", true);
+                // Smelt ahora usa sus propias condiciones, que se parsean automáticamente
+                yield new SmeltEffect(dropExperience, conditions, cooldown, cooldownId);
+            }
+
             default -> null;
         };
     }
