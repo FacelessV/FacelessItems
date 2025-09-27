@@ -5,20 +5,16 @@ import bw.development.facelessItems.Items.CustomItem;
 import bw.development.facelessItems.Effects.Effect;
 import bw.development.facelessItems.Effects.EffectContext;
 import bw.development.facelessItems.Items.CustomItemManager;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Player;
-import org.bukkit.entity.ThrownPotion;
+import org.bukkit.NamespacedKey;
+import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
-import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.entity.EntityDamageEvent;
-import org.bukkit.event.entity.EntityDeathEvent;
-import org.bukkit.event.entity.PotionSplashEvent;
+import org.bukkit.event.entity.*;
 import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.projectiles.ProjectileSource;
 
 import java.util.Collections;
@@ -287,4 +283,76 @@ public class ItemEventListener implements Listener {
             }
         }
     }
+
+    @EventHandler
+    public void onBowShoot(EntityShootBowEvent event) {
+        // Solo nos interesa si el que dispara es un jugador y el proyectil es una flecha
+        if (!(event.getEntity() instanceof Player player) || !(event.getProjectile() instanceof Arrow arrow)) {
+            return;
+        }
+
+        ItemStack bow = event.getBow();
+        CustomItem customBow = customItemManager.getCustomItemByItemStack(bow);
+        if (customBow == null) {
+            return;
+        }
+
+        // Creamos una clave única para nuestra etiqueta
+        NamespacedKey key = new NamespacedKey(plugin, "custom_arrow_from_item");
+
+        // "Etiquetamos" la flecha con la ID del arco que la disparó
+        arrow.getPersistentDataContainer().set(key, PersistentDataType.STRING, customBow.getKey());
+    }
+
+    // --- MÉTODO 2 (NUEVO): Detectar el impacto de la flecha "etiquetada" ---
+    @EventHandler
+    public void onProjectileHit(ProjectileHitEvent event) {
+        // Solo nos interesan las flechas
+        if (!(event.getEntity() instanceof Arrow arrow)) {
+            return;
+        }
+
+        // Comprobamos si la flecha tiene nuestra etiqueta
+        NamespacedKey key = new NamespacedKey(plugin, "custom_arrow_from_item");
+        if (!arrow.getPersistentDataContainer().has(key, PersistentDataType.STRING)) {
+            return;
+        }
+
+        // Obtenemos la ID del arco que la disparó
+        String itemKey = arrow.getPersistentDataContainer().get(key, PersistentDataType.STRING);
+        CustomItem customBow = customItemManager.getCustomItemByKey(itemKey);
+        if (customBow == null) {
+            return;
+        }
+
+        // Verificamos que el que disparó es un jugador
+        if (!(arrow.getShooter() instanceof Player shooter)) {
+            return;
+        }
+
+        // Obtenemos los efectos para el trigger 'on_arrow_hit'
+        List<Effect> effects = customBow.getEffects("on_arrow_hit");
+        if (effects.isEmpty()) {
+            return;
+        }
+
+        // Creamos el contexto. El 'targetEntity' puede ser la entidad golpeada o null si se golpeó un bloque.
+        EffectContext context = new EffectContext(
+                shooter,
+                event.getHitEntity(),
+                event,
+                Collections.emptyMap(),
+                customBow.getKey(),
+                plugin
+        );
+
+        // Aplicamos los efectos
+        for (Effect effect : effects) {
+            effect.apply(context);
+        }
+
+        // Opcional: removemos la flecha después del impacto para un efecto más limpio
+        arrow.remove();
+    }
+
 }
