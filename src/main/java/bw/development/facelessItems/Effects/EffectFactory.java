@@ -141,6 +141,20 @@ public class EffectFactory {
             }
         }
 
+        for (String key : Arrays.asList("worlds", "not_worlds")) {
+            if (conditionsMap.get(key) instanceof List) { // Comprobamos que es una lista
+                @SuppressWarnings("unchecked")
+                // Convertimos el Object a una List<String>
+                List<String> worldList = (List<String>) conditionsMap.get(key);
+                // Creamos el Set a partir de la lista ya convertida
+                Set<String> worldNames = new HashSet<>(worldList);
+
+                if (!worldNames.isEmpty()) {
+                    conditions.add(new WorldCondition(worldNames, key.startsWith("not_")));
+                }
+            }
+        }
+
         return conditions;
     }
 
