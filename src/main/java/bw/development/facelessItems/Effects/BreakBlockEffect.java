@@ -10,6 +10,7 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.entity.ExperienceOrb;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
 import java.util.*;
@@ -24,14 +25,10 @@ public class BreakBlockEffect extends BaseEffect {
             Material.MACE
     );
     private static final Map<Material, Material> SMELT_RESULTS = Map.of(
-            // --- LÍNEAS CORREGIDAS ---
             Material.RAW_IRON, Material.IRON_INGOT,
             Material.RAW_GOLD, Material.GOLD_INGOT,
             Material.RAW_COPPER, Material.COPPER_INGOT,
-            // --- FIN DE LA CORRECCIÓN ---
-
-            // Estos ya estaban bien
-            Material.ANCIENT_DEBRIS, Material.NETHERITE_SCRAP, // Ancient Debris es un caso especial
+            Material.ANCIENT_DEBRIS, Material.NETHERITE_SCRAP,
             Material.SAND, Material.GLASS,
             Material.COBBLESTONE, Material.STONE
     );
@@ -44,17 +41,21 @@ public class BreakBlockEffect extends BaseEffect {
             Material.DEEPSLATE_COPPER_ORE, 1
     );
 
-
     private final int radius;
     private final int layers;
     private final List<Material> mineableBlocks;
+    private final int range;
+    private final EffectTarget targetType;
     private SmeltEffect smeltModifier;
 
-    public BreakBlockEffect(int radius, int layers, List<Material> mineableBlocks, List<Condition> conditions, int cooldown, String cooldownId) {
+    // --- CONSTRUCTOR ACTUALIZADO ---
+    public BreakBlockEffect(int radius, int layers, List<Material> mineableBlocks, int range, EffectTarget targetType, List<Condition> conditions, int cooldown, String cooldownId) {
         super(conditions, cooldown, cooldownId);
         this.radius = radius;
         this.layers = layers;
         this.mineableBlocks = mineableBlocks;
+        this.range = range;
+        this.targetType = targetType;
         this.smeltModifier = null;
     }
 
@@ -62,18 +63,39 @@ public class BreakBlockEffect extends BaseEffect {
         this.smeltModifier = smeltModifier;
     }
 
+    // --- MÉTODO APPLYEFFECT ACTUALIZADO ---
     @Override
     protected void applyEffect(EffectContext context) {
         Player player = context.getUser();
-        if (!(context.getData().get("broken_block") instanceof Block block)) return;
         if (player == null) return;
 
-        if (!mineableBlocks.isEmpty() && !mineableBlocks.contains(block.getType())) {
+        Block startBlock = null;
+
+        // Lógica para determinar el bloque objetivo
+        if (targetType == EffectTarget.BLOCK_IN_SIGHT) {
+            // Usamos Ray Tracing para encontrar el bloque que mira el jugador
+            RayTraceResult result = player.rayTraceBlocks(range);
+            if (result != null && result.getHitBlock() != null) {
+                startBlock = result.getHitBlock();
+            }
+        } else if (context.getData().get("broken_block") instanceof Block blockFromContext) {
+            // Mantenemos la lógica antigua para el trigger on_mine
+            startBlock = blockFromContext;
+        }
+
+        if (startBlock == null) return;
+
+        // El resto de la lógica de romper en área
+        if (!mineableBlocks.isEmpty() && !mineableBlocks.contains(startBlock.getType())) {
             return;
         }
 
-        Location center = block.getLocation();
         ItemStack tool = player.getInventory().getItemInMainHand();
+        if (tool.getType().isAir() || !TOOLS.contains(tool.getType())) {
+            return;
+        }
+
+        Location center = startBlock.getLocation();
         Vector direction = player.getEyeLocation().getDirection();
         BlockFace face = BlockFace.SOUTH;
         if (Math.abs(direction.getX()) > Math.abs(direction.getZ())) {
@@ -100,9 +122,6 @@ public class BreakBlockEffect extends BaseEffect {
 
                         Block currentBlock = blockToBreakLoc.getBlock();
                         if (currentBlock.getType().getHardness() < 0 || currentBlock.getType() == Material.AIR) {
-                            continue;
-                        }
-                        if (tool.getType().isAir() || !TOOLS.contains(tool.getType())) {
                             continue;
                         }
 

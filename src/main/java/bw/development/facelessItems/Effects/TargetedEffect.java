@@ -16,6 +16,8 @@ public abstract class TargetedEffect extends BaseEffect {
         this.targetType = targetType;
     }
 
+// En TargetedEffect.java
+
     @Override
     protected void applyEffect(EffectContext context) {
         LivingEntity finalTarget = switch (targetType) {
@@ -36,10 +38,13 @@ public abstract class TargetedEffect extends BaseEffect {
                 }
                 yield null;
             }
+            // --- LÍNEA AÑADIDA ---
+            // Maneja cualquier otro caso (como BLOCK_IN_SIGHT) devolviendo null,
+            // ya que este efecto solo funciona con entidades vivas.
+            default -> null;
         };
 
         if (finalTarget != null) {
-            // --- CHANGE 1: Pass 'context' to the method below ---
             applyToTarget(finalTarget, context.getUser(), context.getBukkitEvent(), context);
         }
     }

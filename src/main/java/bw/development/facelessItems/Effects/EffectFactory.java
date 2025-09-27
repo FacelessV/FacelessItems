@@ -208,7 +208,10 @@ public class EffectFactory {
                 int radius = getSafeInt(properties.get("radius"), 1);
                 int layers = getSafeInt(properties.get("layers"), 1);
                 List<Material> mineableBlocks = getSafeMaterialList(properties.get("can_mine_blocks"));
-                yield new BreakBlockEffect(radius, layers, mineableBlocks, conditions, cooldown, cooldownId);
+                // Leemos las nuevas propiedades. 'range' solo es relevante si target es BLOCK_IN_SIGHT.
+                int range = getSafeInt(properties.get("range"), 10); // 10 bloques de rango por defecto
+                // 'target' ya lo leemos arriba, así que solo lo pasamos
+                yield new BreakBlockEffect(radius, layers, mineableBlocks, range, target, conditions, cooldown, cooldownId);
             }
             case "VEIN_MINE" -> {
                 int maxBlocks = getSafeInt(properties.get("max_blocks"), 64);
@@ -317,6 +320,20 @@ public class EffectFactory {
                 boolean dropExperience = (boolean) properties.getOrDefault("drop_experience", true);
                 // Smelt ahora usa sus propias condiciones, que se parsean automáticamente
                 yield new SmeltEffect(dropExperience, conditions, cooldown, cooldownId);
+            }
+
+            case "SOUND" -> {
+                String soundName = (String) properties.getOrDefault("sound_effect", "UI_BUTTON_CLICK");
+                Sound sound;
+                try {
+                    sound = Sound.valueOf(soundName.toUpperCase());
+                } catch (IllegalArgumentException e) {
+                    // Log de advertencia opcional
+                    sound = Sound.UI_BUTTON_CLICK;
+                }
+                float volume = (float) getSafeDouble(properties.get("volume"), 1.0);
+                float pitch = (float) getSafeDouble(properties.get("pitch"), 1.0);
+                yield new SoundEffect(sound, volume, pitch, target, conditions, cooldown, cooldownId);
             }
 
             default -> null;
