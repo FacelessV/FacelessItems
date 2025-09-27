@@ -1,14 +1,19 @@
 package bw.development.facelessItems.Effects;
 
 import bw.development.facelessItems.Effects.Conditions.Condition;
+import bw.development.facelessItems.FacelessItems;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
+import org.bukkit.block.data.Ageable;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.ExperienceOrb;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.*;
 
@@ -39,18 +44,25 @@ public class VeinMineEffect extends BaseEffect {
 
     private final int maxBlocks;
     private final List<Material> mineableBlocks;
-    private SmeltEffect smeltModifier; // Campo para guardar el modificador
+    private SmeltEffect smeltModifier;
+    private ReplantEffect replantModifier; // <-- AÑADIDO
 
     public VeinMineEffect(int maxBlocks, List<Material> mineableBlocks, List<Condition> conditions, int cooldown, String cooldownId) {
         super(conditions, cooldown, cooldownId);
         this.maxBlocks = maxBlocks;
         this.mineableBlocks = mineableBlocks;
-        this.smeltModifier = null; // Se inicializa como nulo
+        this.smeltModifier = null;
+        this.replantModifier = null; // <-- AÑADIDO
     }
 
-    // Método para que el listener le dé el SmeltEffect
+    // Método para que el listener o el ChainEffect le den el modificador
     public void setSmeltModifier(SmeltEffect smeltModifier) {
         this.smeltModifier = smeltModifier;
+    }
+
+    // --- AÑADIDO ---
+    public void setReplantModifier(ReplantEffect replantModifier) {
+        this.replantModifier = replantModifier;
     }
 
     @Override
@@ -68,6 +80,7 @@ public class VeinMineEffect extends BaseEffect {
             return;
         }
 
+        List<Block> brokenBlocksInVein = new ArrayList<>();
         Material originalMaterial = startBlock.getType();
         Queue<Block> blocksToProcess = new LinkedList<>();
         Set<Block> processedBlocks = new HashSet<>();
@@ -77,44 +90,30 @@ public class VeinMineEffect extends BaseEffect {
         int blocksBroken = 0;
         while (!blocksToProcess.isEmpty() && blocksBroken < maxBlocks) {
             Block currentBlock = blocksToProcess.poll();
-            boolean wasSmelted = false;
 
-            if (smeltModifier != null) {
+            // --- LÓGICA ACTUALIZADA ---
+            // Primero, comprobamos si hay que replantar
+            if (replantModifier != null) {
                 EffectContext blockContext = new EffectContext(player, null, context.getBukkitEvent(), Map.of("broken_block", currentBlock), context.getItemKey(), context.getPlugin());
-                boolean conditionsMet = true;
-                for (Condition condition : smeltModifier.getConditions()) {
-                    if (!condition.check(blockContext)) {
-                        conditionsMet = false;
-                        break;
-                    }
-                }
-                if (conditionsMet) {
-                    smeltBlock(currentBlock, tool);
-                    wasSmelted = true;
+                boolean conditionsMet = replantModifier.getConditions().stream().allMatch(c -> c.check(blockContext));
+
+                if (conditionsMet && currentBlock.getBlockData() instanceof Ageable) {
+                    breakAndReplant(currentBlock, player, tool, context.getPlugin());
+                    brokenBlocksInVein.add(currentBlock);
+                    blocksBroken++;
+                    // Buscamos el siguiente bloque en la vena
+                    findNextVeinBlocks(currentBlock, originalMaterial, blocksToProcess, processedBlocks);
+                    continue; // Saltamos al siguiente bloque del bucle
                 }
             }
 
-            if (!wasSmelted) {
-                if (player.getGameMode() == GameMode.CREATIVE) {
-                    currentBlock.breakNaturally();
-                } else {
-                    currentBlock.breakNaturally(tool);
-                }
-            }
-
+            // Si no se replantó, aplicamos la lógica de romper/fundir
+            breakNormally(currentBlock, player, tool, context);
+            brokenBlocksInVein.add(currentBlock);
             blocksBroken++;
-            for (int x = -1; x <= 1; x++) {
-                for (int y = -1; y <= 1; y++) {
-                    for (int z = -1; z <= 1; z++) {
-                        if (x == 0 && y == 0 && z == 0) continue;
-                        Block relativeBlock = currentBlock.getRelative(x, y, z);
-                        if (relativeBlock.getType() == originalMaterial && processedBlocks.add(relativeBlock)) {
-                            blocksToProcess.add(relativeBlock);
-                        }
-                    }
-                }
-            }
+            findNextVeinBlocks(currentBlock, originalMaterial, blocksToProcess, processedBlocks);
         }
+        context.getData().put("broken_blocks_list", brokenBlocksInVein);
     }
 
     private void smeltBlock(Block block, ItemStack tool) {
@@ -127,6 +126,7 @@ public class VeinMineEffect extends BaseEffect {
             world.dropItemNaturally(center, drop);
         }
 
+        // Ahora lee 'dropExperience' desde el modificador
         if (smeltModifier != null && smeltModifier.dropExperience) {
             int exp = SMELT_EXP.getOrDefault(block.getType(), 0);
             if (exp > 0) {
@@ -134,6 +134,64 @@ public class VeinMineEffect extends BaseEffect {
             }
         }
         block.setType(Material.AIR);
+    }
+
+    private void breakAndReplant(Block block, Player player, ItemStack tool, FacelessItems plugin) {
+        Material cropType = block.getType();
+
+        if (player.getGameMode() == GameMode.CREATIVE) {
+            block.breakNaturally();
+        } else {
+            block.breakNaturally(tool);
+        }
+
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (block.getRelative(BlockFace.DOWN).getType() == Material.FARMLAND) {
+                    block.setType(cropType);
+                    BlockData newData = block.getBlockData();
+                    if (newData instanceof Ageable newAgeable) {
+                        newAgeable.setAge(0);
+                        block.setBlockData(newAgeable);
+                    }
+                }
+            }
+        }.runTaskLater(plugin, 1L);
+    }
+
+    private void breakNormally(Block block, Player player, ItemStack tool, EffectContext context) {
+        boolean wasSmelted = false;
+        if (smeltModifier != null) {
+            EffectContext blockContext = new EffectContext(player, null, context.getBukkitEvent(), Map.of("broken_block", block), context.getItemKey(), context.getPlugin());
+            boolean conditionsMet = smeltModifier.getConditions().stream().allMatch(c -> c.check(blockContext));
+            if (conditionsMet) {
+                smeltBlock(block, tool);
+                wasSmelted = true;
+            }
+        }
+
+        if (!wasSmelted) {
+            if (player.getGameMode() == GameMode.CREATIVE) {
+                block.breakNaturally();
+            } else {
+                block.breakNaturally(tool);
+            }
+        }
+    }
+
+    private void findNextVeinBlocks(Block currentBlock, Material originalMaterial, Queue<Block> blocksToProcess, Set<Block> processedBlocks) {
+        for (int x = -1; x <= 1; x++) {
+            for (int y = -1; y <= 1; y++) {
+                for (int z = -1; z <= 1; z++) {
+                    if (x == 0 && y == 0 && z == 0) continue;
+                    Block relativeBlock = currentBlock.getRelative(x, y, z);
+                    if (relativeBlock.getType() == originalMaterial && processedBlocks.add(relativeBlock)) {
+                        blocksToProcess.add(relativeBlock);
+                    }
+                }
+            }
+        }
     }
 
     @Override

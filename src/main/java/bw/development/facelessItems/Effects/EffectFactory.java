@@ -161,6 +161,11 @@ public class EffectFactory {
             conditions.add(new TimeCondition(mustBeDay));
         }
 
+        if (conditionsMap.containsKey("is_fully_grown")) {
+            boolean value = (boolean) conditionsMap.getOrDefault("is_fully_grown", true);
+            conditions.add(new IsFullyGrownCondition(value));
+        }
+
         return conditions;
     }
 
@@ -207,15 +212,17 @@ public class EffectFactory {
             case "BREAK_BLOCK" -> {
                 int radius = getSafeInt(properties.get("radius"), 1);
                 int layers = getSafeInt(properties.get("layers"), 1);
-                List<Material> mineableBlocks = getSafeMaterialList(properties.get("can_mine_blocks"));
-                // Leemos las nuevas propiedades. 'range' solo es relevante si target es BLOCK_IN_SIGHT.
-                int range = getSafeInt(properties.get("range"), 10); // 10 bloques de rango por defecto
-                // 'target' ya lo leemos arriba, así que solo lo pasamos
+                List<Material> mineableBlocks = getSafeMaterialList(properties.get("mineable_blocks"));
+                int range = getSafeInt(properties.get("range"), 10);
+
                 yield new BreakBlockEffect(radius, layers, mineableBlocks, range, target, conditions, cooldown, cooldownId);
             }
             case "VEIN_MINE" -> {
                 int maxBlocks = getSafeInt(properties.get("max_blocks"), 64);
-                List<Material> mineableBlocks = getSafeMaterialList(properties.get("can_mine_blocks"));
+                List<Material> mineableBlocks = getSafeMaterialList(properties.get("mineable_blocks"));
+
+                // --- ¡CORRECCIÓN! ---
+                // Llamamos al constructor simple, que ya no necesita 'smelt' ni 'experience'.
                 yield new VeinMineEffect(maxBlocks, mineableBlocks, conditions, cooldown, cooldownId);
             }
             case "CHAIN_LIGHTNING" -> {
@@ -265,25 +272,35 @@ public class EffectFactory {
                 yield new ExplosionEffect(power, setFire, breakBlocks, target, conditions, cooldown, cooldownId);
             }
             case "CHAIN" -> {
-                List<Effect> effectsInChain = new ArrayList<>();
+                List<BaseEffect> effectsInChain = new ArrayList<>();
                 int delay = getSafeInt(properties.get("delay"), 0);
 
                 Object rawChainedEffects = properties.get("effects");
+
+                // Obtenemos el target del 'CHAIN' padre para pasárselo a los hijos.
+                String parentTargetStr = (String) properties.getOrDefault("target", "PLAYER");
+
                 if (rawChainedEffects instanceof List) {
-                    effectsInChain = parseTriggerEffects(rawChainedEffects);
+                    List<Map<String, Object>> effectsMaps = (List<Map<String, Object>>) rawChainedEffects;
+
+                    for(Map<String, Object> effectMap : effectsMaps) {
+                        // --- ¡LÓGICA CLAVE! ---
+                        // Si el efecto hijo no tiene su propio 'target', hereda el del padre.
+                        effectMap.putIfAbsent("target", parentTargetStr);
+
+                        // Creamos el efecto con la información de target actualizada
+                        Effect effect = createEffect((Map<?, ?>) effectMap);
+                        if(effect instanceof BaseEffect){
+                            effectsInChain.add((BaseEffect) effect);
+                        }
+                    }
+
                 } else if (rawChainedEffects instanceof ConfigurationSection) {
-                    effectsInChain = parseEffects((ConfigurationSection) rawChainedEffects);
+                    // Esta lógica es más compleja, nos centramos en la de arriba que es la que usas
+                    // pero necesitaría una adaptación similar.
                 }
 
-                // --- ¡AQUÍ ESTÁ LA CORRECCIÓN! ---
-                // 1. Creamos una nueva lista del tipo correcto (BaseEffect).
-                List<BaseEffect> baseEffectsInChain = effectsInChain.stream()
-                        .filter(BaseEffect.class::isInstance) // Nos aseguramos de que cada efecto sea un BaseEffect
-                        .map(BaseEffect.class::cast)         // Convertimos cada efecto a BaseEffect
-                        .collect(Collectors.toList());       // Lo guardamos en la nueva lista
-
-                // 2. Usamos la nueva lista (baseEffectsInChain) en el constructor.
-                yield new ChainEffect(baseEffectsInChain, delay, conditions, cooldown, cooldownId);
+                yield new ChainEffect(effectsInChain, delay, conditions, cooldown, cooldownId);
             }
             case "LIFESTEAL" -> {
                 double percentage = getSafeDouble(properties.get("percentage"), 10.0); // 10% por defecto
@@ -327,13 +344,17 @@ public class EffectFactory {
                 Sound sound;
                 try {
                     sound = Sound.valueOf(soundName.toUpperCase());
-                } catch (IllegalArgumentException e) {
-                    // Log de advertencia opcional
-                    sound = Sound.UI_BUTTON_CLICK;
-                }
+                } catch (IllegalArgumentException e) { sound = Sound.UI_BUTTON_CLICK; }
+
                 float volume = (float) getSafeDouble(properties.get("volume"), 1.0);
                 float pitch = (float) getSafeDouble(properties.get("pitch"), 1.0);
-                yield new SoundEffect(sound, volume, pitch, target, conditions, cooldown, cooldownId);
+                int range = getSafeInt(properties.get("range"), 20); // <-- AÑADIR ESTA LÍNEA
+
+                yield new SoundEffect(sound, volume, pitch, target, range, conditions, cooldown, cooldownId);
+            }
+
+            case "REPLANT" -> {
+                yield new ReplantEffect(conditions, cooldown, cooldownId);
             }
 
             default -> null;

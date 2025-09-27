@@ -1,15 +1,19 @@
 package bw.development.facelessItems.Effects;
 
 import bw.development.facelessItems.Effects.Conditions.Condition;
+import bw.development.facelessItems.FacelessItems;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.data.Ageable;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.ExperienceOrb;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
@@ -46,7 +50,9 @@ public class BreakBlockEffect extends BaseEffect {
     private final List<Material> mineableBlocks;
     private final int range;
     private final EffectTarget targetType;
+
     private SmeltEffect smeltModifier;
+    private ReplantEffect replantModifier; // <-- AÑADIR NUEVO CAMPO
 
     // --- CONSTRUCTOR ACTUALIZADO ---
     public BreakBlockEffect(int radius, int layers, List<Material> mineableBlocks, int range, EffectTarget targetType, List<Condition> conditions, int cooldown, String cooldownId) {
@@ -57,11 +63,17 @@ public class BreakBlockEffect extends BaseEffect {
         this.range = range;
         this.targetType = targetType;
         this.smeltModifier = null;
+        this.replantModifier = null;
     }
 
     public void setSmeltModifier(SmeltEffect smeltModifier) {
         this.smeltModifier = smeltModifier;
     }
+
+    public void setReplantModifier(ReplantEffect replantModifier) {
+        this.replantModifier = replantModifier;
+    }
+
 
     // --- MÉTODO APPLYEFFECT ACTUALIZADO ---
     @Override
@@ -85,7 +97,6 @@ public class BreakBlockEffect extends BaseEffect {
 
         if (startBlock == null) return;
 
-        // El resto de la lógica de romper en área
         if (!mineableBlocks.isEmpty() && !mineableBlocks.contains(startBlock.getType())) {
             return;
         }
@@ -94,6 +105,8 @@ public class BreakBlockEffect extends BaseEffect {
         if (tool.getType().isAir() || !TOOLS.contains(tool.getType())) {
             return;
         }
+
+        List<Block> brokenBlocksInArea = new ArrayList<>();
 
         Location center = startBlock.getLocation();
         Vector direction = player.getEyeLocation().getDirection();
@@ -121,8 +134,20 @@ public class BreakBlockEffect extends BaseEffect {
                         }
 
                         Block currentBlock = blockToBreakLoc.getBlock();
-                        if (currentBlock.getType().getHardness() < 0 || currentBlock.getType() == Material.AIR) {
-                            continue;
+                        if (!mineableBlocks.isEmpty() && !mineableBlocks.contains(currentBlock.getType())) {
+                            continue; // Si el bloque no es un cultivo de la lista, lo ignoramos.
+                        }
+
+                        // Primero, verificamos si hay que replantar
+                        if (replantModifier != null) {
+                            EffectContext blockContext = new EffectContext(player, null, context.getBukkitEvent(), Map.of("broken_block", currentBlock), context.getItemKey(), context.getPlugin());
+                            boolean conditionsMet = replantModifier.getConditions().stream().allMatch(c -> c.check(blockContext));
+
+                            if (conditionsMet && currentBlock.getBlockData() instanceof Ageable) {
+                                breakAndReplant(currentBlock, player, tool, context.getPlugin());
+                                brokenBlocksInArea.add(currentBlock);
+                                continue; // Importante: saltamos al siguiente bloque del bucle
+                            }
                         }
 
                         boolean wasSmelted = false;
@@ -148,10 +173,14 @@ public class BreakBlockEffect extends BaseEffect {
                                 currentBlock.breakNaturally(tool);
                             }
                         }
+
+                        breakNormally(currentBlock, player, tool, context);
+                        brokenBlocksInArea.add(currentBlock);
                     }
                 }
             }
         }
+        context.getData().put("broken_blocks_list", brokenBlocksInArea);
     }
 
     private void smeltBlock(Block block, ItemStack tool) {
@@ -171,6 +200,49 @@ public class BreakBlockEffect extends BaseEffect {
             }
         }
         block.setType(Material.AIR);
+    }
+    private void breakNormally(Block block, Player player, ItemStack tool, EffectContext context) {
+        boolean wasSmelted = false;
+        if (smeltModifier != null) {
+            EffectContext blockContext = new EffectContext(player, null, context.getBukkitEvent(), Map.of("broken_block", block), context.getItemKey(), context.getPlugin());
+            boolean conditionsMet = smeltModifier.getConditions().stream().allMatch(c -> c.check(blockContext));
+            if (conditionsMet) {
+                smeltBlock(block, tool);
+                wasSmelted = true;
+            }
+        }
+
+        if (!wasSmelted) {
+            if (player.getGameMode() == GameMode.CREATIVE) {
+                block.breakNaturally();
+            } else {
+                block.breakNaturally(tool);
+            }
+        }
+    }
+
+    private void breakAndReplant(Block block, Player player, ItemStack tool, FacelessItems plugin) {
+        Material cropType = block.getType();
+
+        if (player.getGameMode() == GameMode.CREATIVE) {
+            block.breakNaturally();
+        } else {
+            block.breakNaturally(tool);
+        }
+
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (block.getRelative(BlockFace.DOWN).getType() == Material.FARMLAND) {
+                    block.setType(cropType);
+                    BlockData newData = block.getBlockData();
+                    if (newData instanceof Ageable newAgeable) {
+                        newAgeable.setAge(0);
+                        block.setBlockData(newAgeable);
+                    }
+                }
+            }
+        }.runTaskLater(plugin, 1L);
     }
 
     @Override

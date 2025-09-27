@@ -5,8 +5,10 @@ import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.entity.ProjectileHitEvent;
+import org.bukkit.util.RayTraceResult;
 
 import java.util.List;
 
@@ -16,13 +18,15 @@ public class SoundEffect extends BaseEffect {
     private final float volume;
     private final float pitch;
     private final EffectTarget targetType;
+    private final int range; // <-- Se añade rango para el BLOCK_IN_SIGHT
 
-    public SoundEffect(Sound sound, float volume, float pitch, EffectTarget target, List<Condition> conditions, int cooldown, String cooldownId) {
+    public SoundEffect(Sound sound, float volume, float pitch, EffectTarget target, int range, List<Condition> conditions, int cooldown, String cooldownId) {
         super(conditions, cooldown, cooldownId);
         this.sound = sound;
         this.volume = volume;
         this.pitch = pitch;
         this.targetType = target;
+        this.range = range; // <-- Se guarda el rango
     }
 
     @Override
@@ -34,33 +38,34 @@ public class SoundEffect extends BaseEffect {
     }
 
     private Location determineLocation(EffectContext context) {
+        Player user = context.getUser();
         Event event = context.getBukkitEvent();
-        // Caso especial: El sonido debe originarse en el punto de impacto de una flecha
+
         if (event instanceof ProjectileHitEvent hitEvent) {
             return hitEvent.getEntity().getLocation();
         }
 
-        // Casos generales
+        // --- LÓGICA CORREGIDA ---
         switch (targetType) {
-            case ENTITY:
-                if (context.getTargetEntity() != null) return context.getTargetEntity().getLocation();
-                break;
             case PLAYER:
-                if (context.getUser() != null) return context.getUser().getLocation();
-                break;
+                return user != null ? user.getLocation() : null;
+            case ENTITY:
+                return context.getTargetEntity() != null ? context.getTargetEntity().getLocation() : null;
             case LIVING_ENTITY_IN_SIGHT:
-                Entity entityInSight = context.getUser().getTargetEntity(50);
-                if (entityInSight != null) return entityInSight.getLocation();
-                break;
+                Entity entityInSight = user != null ? user.getTargetEntity(50) : null;
+                return entityInSight != null ? entityInSight.getLocation() : null;
+            case BLOCK_IN_SIGHT:
+                if (user == null) return null;
+                // Ahora SoundEffect también puede hacer Ray Tracing
+                RayTraceResult result = user.rayTraceBlocks(range);
+                return (result != null && result.getHitBlock() != null) ? result.getHitBlock().getLocation() : null;
         }
 
-        // Si es un evento de minería, usamos la ubicación del bloque
         if (context.getData().get("broken_block") instanceof Block block) {
             return block.getLocation();
         }
 
-        // Como último recurso, usamos la ubicación del jugador
-        return context.getUser() != null ? context.getUser().getLocation() : null;
+        return user != null ? user.getLocation() : null;
     }
 
     @Override

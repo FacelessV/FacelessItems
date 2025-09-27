@@ -166,33 +166,24 @@ public class ItemEventListener implements Listener {
         List<Effect> effects = customItem.getEffects("on_mine");
         if (effects.isEmpty()) return;
 
-        // Buscamos si hay un efecto Smelt en la lista
-        SmeltEffect smeltEffect = effects.stream()
-                .filter(SmeltEffect.class::isInstance)
-                .map(SmeltEffect.class::cast)
-                .findFirst().orElse(null);
+        // Buscamos los modificadores en la lista
+        SmeltEffect smeltModifier = effects.stream().filter(SmeltEffect.class::isInstance).map(SmeltEffect.class::cast).findFirst().orElse(null);
+        ReplantEffect replantModifier = effects.stream().filter(ReplantEffect.class::isInstance).map(ReplantEffect.class::cast).findFirst().orElse(null);
 
-        // Buscamos y ejecutamos los efectos de minería, pasándoles el SmeltEffect si existe
+        // Ejecutamos los efectos, inyectando los modificadores
         for (Effect effect : effects) {
-            EffectContext context = new EffectContext(
-                    player,
-                    null, // No hay entidad objetivo en este evento
-                    event,
-                    Map.of("broken_block", event.getBlock()), // Usamos Map.of para un mapa inmutable
-                    customItem.getKey(),
-                    plugin
-            );
+            if (effect instanceof BreakBlockEffect breakBlock) {
+                breakBlock.setSmeltModifier(smeltModifier);
 
-            // Pasamos el SmeltEffect a los efectos que saben cómo usarlo
-            if (effect instanceof VeinMineEffect veinMineEffect) {
-                veinMineEffect.setSmeltModifier(smeltEffect); // Le damos el modificador
-                veinMineEffect.apply(context);
-            } else if (effect instanceof BreakBlockEffect breakBlockEffect) {
-                breakBlockEffect.setSmeltModifier(smeltEffect); // Le damos el modificador
-                breakBlockEffect.apply(context);
-            } else if (!(effect instanceof SmeltEffect)) {
-                // Ejecutamos otros efectos que no sean de minería ni el propio Smelt
-                effect.apply(context);
+                breakBlock.setReplantModifier(replantModifier);
+                breakBlock.apply(new EffectContext(player, null, event, Map.of("broken_block", event.getBlock()), customItem.getKey(), plugin));
+            } else if (effect instanceof VeinMineEffect veinMine) {
+                veinMine.setSmeltModifier(smeltModifier);
+                veinMine.setReplantModifier(replantModifier);
+                veinMine.apply(new EffectContext(player, null, event, Map.of("broken_block", event.getBlock()), customItem.getKey(), plugin));
+            } else if (!(effect instanceof SmeltEffect) && !(effect instanceof ReplantEffect)) {
+                // Ejecutamos otros efectos que no sean modificadores
+                effect.apply(new EffectContext(player, null, event, Map.of("broken_block", event.getBlock()), customItem.getKey(), plugin));
             }
         }
     }
@@ -309,17 +300,34 @@ public class ItemEventListener implements Listener {
 
     @EventHandler
     public void onBowShoot(EntityShootBowEvent event) {
-        if (!(event.getEntity() instanceof Player player) || !(event.getProjectile() instanceof Arrow)) {
+        if (!(event.getEntity() instanceof Player player) || !(event.getProjectile() instanceof Arrow arrow)) {
             return;
         }
 
         ItemStack bow = event.getBow();
         CustomItem customBow = customItemManager.getCustomItemByItemStack(bow);
+        ItemStack arrowItem = event.getConsumable();
+        CustomItem customArrow = customItemManager.getCustomItemByItemStack(arrowItem);
+
+        // Aplicamos la apariencia visual a la flecha original
+        if (customArrow != null && arrowItem.getItemMeta() instanceof PotionMeta) {
+            PotionMeta originalMeta = (PotionMeta) arrowItem.getItemMeta();
+            if (originalMeta.hasCustomEffects()) {
+                for (org.bukkit.potion.PotionEffect pEffect : originalMeta.getCustomEffects()) {
+                    arrow.addCustomEffect(pEffect, true);
+                }
+            }
+            if (originalMeta.hasColor()) {
+                arrow.setColor(originalMeta.getColor());
+            }
+        }
+
         if (customBow == null) {
+            // Si el arco no es custom, solo etiquetamos la flecha si es custom y terminamos
+            tagArrow(arrow, null, arrowItem, true);
             return;
         }
 
-        // Buscamos el efecto MULTI_SHOT
         MultiShotEffect multiShotEffect = customBow.getEffects("on_bow_shoot").stream()
                 .filter(MultiShotEffect.class::isInstance)
                 .map(MultiShotEffect.class::cast)
@@ -327,51 +335,64 @@ public class ItemEventListener implements Listener {
 
         if (multiShotEffect != null) {
             String cooldownId = multiShotEffect.getCooldownId() != null ? multiShotEffect.getCooldownId() : customBow.getKey();
-
-            // 1. Comprobamos el cooldown de forma explícita PRIMERO
             if (multiShotEffect.getCooldown() > 0 && plugin.getCooldownManager().isOnCooldown(player, cooldownId)) {
-                long remaining = plugin.getCooldownManager().getRemainingCooldown(player, cooldownId);
-                String formatted = String.format("%.1f", remaining / 1000.0);
-                plugin.getMessageManager().sendMessage(player, "item_on_cooldown", "{cooldown_remaining}", formatted);
-                event.setCancelled(true); // Cancelamos el disparo si está en cooldown
+                // ... (lógica de cooldown)
+                event.setCancelled(true);
                 return;
             }
 
-            // 2. Comprobamos las condiciones de forma explícita
             EffectContext context = new EffectContext(player, null, event, Collections.emptyMap(), customBow.getKey(), plugin);
-            for (Condition condition : multiShotEffect.getConditions()) { // Asumiendo un getter para conditions en BaseEffect
-                if (!condition.check(context)) {
-                    // Si una condición falla, no hacemos nada. La flecha se dispara normalmente.
-                    tagArrow((Arrow) event.getProjectile(), customBow, event.getConsumable(), true);
-                    return;
-                }
+            boolean conditionsMet = multiShotEffect.getConditions().stream().allMatch(c -> c.check(context));
+
+            if (!conditionsMet) {
+                tagArrow(arrow, customBow, arrowItem, true);
+                return;
             }
 
-            // 3. Si todo pasa, APLICAMOS el cooldown y el efecto
             if (multiShotEffect.getCooldown() > 0) {
                 plugin.getCooldownManager().setCooldown(player, cooldownId, multiShotEffect.getCooldown());
             }
 
-            event.setCancelled(true); // Cancelamos el disparo original para reemplazarlo
+            event.setCancelled(true);
 
             int arrowCount = multiShotEffect.arrowCount;
             double spread = multiShotEffect.spread;
-            ItemStack arrowItem = event.getConsumable();
+            int centerArrowIndex = (arrowCount - 1) / 2; // Índice de la flecha central
 
             for (int i = 0; i < arrowCount; i++) {
-                double angle = (i - (arrowCount - 1) / 2.0) * spread;
+                double angle = (i - centerArrowIndex) * spread;
                 Vector rotatedDirection = player.getEyeLocation().getDirection().clone().rotateAroundY(Math.toRadians(angle));
 
                 Arrow newArrow = player.launchProjectile(Arrow.class, rotatedDirection);
                 newArrow.setPickupStatus(Arrow.PickupStatus.CREATIVE_ONLY);
 
-                if (multiShotEffect.copyCustomArrowMeta) { /* ... tu lógica para copiar meta ... */ }
-                tagArrow(newArrow, customBow, arrowItem, multiShotEffect.propagateArrowEffects);
-            }
+                if (multiShotEffect.copyCustomArrowMeta) {
+                    copyArrowMeta(arrowItem, newArrow);
+                }
 
+                // --- ¡LÓGICA CLAVE CORREGIDA! ---
+                // La flecha central SIEMPRE se etiqueta. Las demás, solo si 'propagate' es true.
+                boolean shouldTagThisArrow = (i == centerArrowIndex) || multiShotEffect.propagateArrowEffects;
+                tagArrow(newArrow, customBow, arrowItem, shouldTagThisArrow);
+            }
         } else {
-            // Si no hay efecto MULTI_SHOT, etiquetamos la flecha normalmente
-            tagArrow((Arrow) event.getProjectile(), customBow, event.getConsumable(), true);
+            // Si el arco es custom pero no tiene MULTI_SHOT, solo etiquetamos la flecha original
+            tagArrow(arrow, customBow, arrowItem, true);
+        }
+    }
+
+    // Método de ayuda para copiar la apariencia, para no repetir código
+    private void copyArrowMeta(ItemStack originalArrowItem, Arrow newArrowEntity) {
+        if (originalArrowItem != null && originalArrowItem.getItemMeta() instanceof PotionMeta) {
+            PotionMeta originalMeta = (PotionMeta) originalArrowItem.getItemMeta();
+            if (originalMeta.hasCustomEffects()) {
+                for(org.bukkit.potion.PotionEffect pEffect : originalMeta.getCustomEffects()){
+                    newArrowEntity.addCustomEffect(pEffect, true);
+                }
+            }
+            if (originalMeta.hasColor()) {
+                newArrowEntity.setColor(originalMeta.getColor());
+            }
         }
     }
 

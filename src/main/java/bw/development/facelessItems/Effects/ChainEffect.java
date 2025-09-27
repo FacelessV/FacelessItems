@@ -9,11 +9,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class ChainEffect extends BaseEffect {
 
-    // CAMBIO 1: La lista ahora es de 'BaseEffect' en lugar de 'Effect'
     private final List<BaseEffect> chainedEffects;
     private final int delayBetweenEffects;
 
-    // CAMBIO 2: El constructor ahora acepta una lista de 'BaseEffect'
     public ChainEffect(List<BaseEffect> chainedEffects, int delayBetweenEffects, List<Condition> conditions, int cooldown, String cooldownId) {
         super(conditions, cooldown, cooldownId);
         this.chainedEffects = chainedEffects;
@@ -25,12 +23,26 @@ public class ChainEffect extends BaseEffect {
         if (chainedEffects.isEmpty()) return;
 
         FacelessItems plugin = context.getPlugin();
-        if (plugin == null) {
-            if (context.getUser() != null) {
-                context.getUser().sendMessage("§cError interno: Plugin no disponible para efectos en cadena.");
+        if (plugin == null) return;
+
+        // --- ¡NUEVA LÓGICA DE PRE-CONFIGURACIÓN! ---
+        // 1. Buscamos si existe un modificador Smelt en la cadena.
+        SmeltEffect smeltModifier = chainedEffects.stream()
+                .filter(SmeltEffect.class::isInstance)
+                .map(SmeltEffect.class::cast)
+                .findFirst().orElse(null);
+
+        // 2. Si existe, se lo asignamos a todos los efectos de minería en la cadena.
+        if (smeltModifier != null) {
+            for (BaseEffect effect : chainedEffects) {
+                if (effect instanceof BreakBlockEffect breakBlockEffect) {
+                    breakBlockEffect.setSmeltModifier(smeltModifier);
+                } else if (effect instanceof VeinMineEffect veinMineEffect) {
+                    veinMineEffect.setSmeltModifier(smeltModifier);
+                }
             }
-            return;
         }
+        // --- FIN DE LA NUEVA LÓGICA ---
 
         AtomicInteger currentIndex = new AtomicInteger(0);
 
@@ -42,11 +54,12 @@ public class ChainEffect extends BaseEffect {
                     return;
                 }
 
-                // Ahora Java sabe que 'currentEffect' es un BaseEffect y tiene el método applyEffect()
                 BaseEffect currentEffect = chainedEffects.get(currentIndex.get());
 
-                // Esta línea ahora funciona sin errores
-                currentEffect.applyEffect(context);
+                // No ejecutamos el SmeltEffect directamente, ya que solo es un modificador
+                if (!(currentEffect instanceof SmeltEffect)) {
+                    currentEffect.applyEffect(context);
+                }
 
                 currentIndex.incrementAndGet();
 
