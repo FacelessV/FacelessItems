@@ -22,6 +22,7 @@ import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffectType;
 
@@ -91,13 +92,13 @@ public class CustomItemManager {
                 ItemMeta meta = itemStack.getItemMeta();
                 if (meta == null) continue;
 
-                // Comprueba si el ítem es una poción y si tiene la sección 'potion-meta'
-                if (meta instanceof org.bukkit.inventory.meta.PotionMeta potionMeta && config.isConfigurationSection("potion-meta")) {
-                    ConfigurationSection potionSection = config.getConfigurationSection("potion-meta");
+                if (meta instanceof PotionMeta potionMeta && config.isConfigurationSection("potion-meta")) {
 
-                    // Aplicar color personalizado si está definido
-                    if (potionSection.isString("color")) {
-                        String hexColor = potionSection.getString("color").replace("#", "");
+                    ConfigurationSection metaSection = config.getConfigurationSection("potion-meta");
+
+                    // La lógica para aplicar color y efectos es la misma para ambos.
+                    if (metaSection.isString("color")) {
+                        String hexColor = metaSection.getString("color").replace("#", "");
                         try {
                             java.awt.Color awtColor = java.awt.Color.decode("0x" + hexColor);
                             potionMeta.setColor(org.bukkit.Color.fromRGB(awtColor.getRed(), awtColor.getGreen(), awtColor.getBlue()));
@@ -105,18 +106,14 @@ public class CustomItemManager {
                             plugin.getLogger().warning("Color hexadecimal inválido '" + hexColor + "' en el ítem " + key);
                         }
                     }
-
-                    // Aplicar efectos visuales personalizados si están definidos
-                    if (potionSection.isList("custom-effects")) {
-                        List<Map<?, ?>> effectsList = potionSection.getMapList("custom-effects");
+                    if (metaSection.isList("custom-effects")) {
+                        List<Map<?, ?>> effectsList = metaSection.getMapList("custom-effects");
                         for (Map<?, ?> effectMap : effectsList) {
                             String typeName = (String) effectMap.get("type");
                             PotionEffectType effectType = PotionEffectType.getByName(typeName.toUpperCase());
-
                             if (effectType != null) {
                                 int duration = EffectFactory.getSafeInt(effectMap.get("duration"), 200);
                                 int amplifier = EffectFactory.getSafeInt(effectMap.get("amplifier"), 0);
-                                // El 'true' al final sobreescribe efectos existentes del mismo tipo
                                 potionMeta.addCustomEffect(new org.bukkit.potion.PotionEffect(effectType, duration, amplifier), true);
                             }
                         }
