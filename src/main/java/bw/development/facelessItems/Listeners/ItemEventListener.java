@@ -1,5 +1,8 @@
 package bw.development.facelessItems.Listeners;
 
+import bw.development.facelessItems.Effects.Conditions.Condition;
+import bw.development.facelessItems.Effects.MessageEffect;
+import bw.development.facelessItems.Effects.MultiShotEffect;
 import bw.development.facelessItems.FacelessItems;
 import bw.development.facelessItems.Items.CustomItem;
 import bw.development.facelessItems.Effects.Effect;
@@ -14,8 +17,10 @@ import org.bukkit.event.entity.*;
 import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.projectiles.ProjectileSource;
+import org.bukkit.util.Vector;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -290,25 +295,83 @@ public class ItemEventListener implements Listener {
         }
     }
 
-    // --- MÉTODO onBowShoot ACTUALIZADO ---
     @EventHandler
     public void onBowShoot(EntityShootBowEvent event) {
-        if (!(event.getEntity() instanceof Player player) || !(event.getProjectile() instanceof Arrow arrow)) {
+        if (!(event.getEntity() instanceof Player player) || !(event.getProjectile() instanceof Arrow)) {
             return;
         }
 
-        // Etiquetamos la flecha con la ID del ARCO (si es personalizado)
         ItemStack bow = event.getBow();
         CustomItem customBow = customItemManager.getCustomItemByItemStack(bow);
+        if (customBow == null) {
+            return;
+        }
+
+        // Buscamos el efecto MULTI_SHOT
+        MultiShotEffect multiShotEffect = customBow.getEffects("on_bow_shoot").stream()
+                .filter(MultiShotEffect.class::isInstance)
+                .map(MultiShotEffect.class::cast)
+                .findFirst().orElse(null);
+
+        if (multiShotEffect != null) {
+            String cooldownId = multiShotEffect.getCooldownId() != null ? multiShotEffect.getCooldownId() : customBow.getKey();
+
+            // 1. Comprobamos el cooldown de forma explícita PRIMERO
+            if (multiShotEffect.getCooldown() > 0 && plugin.getCooldownManager().isOnCooldown(player, cooldownId)) {
+                long remaining = plugin.getCooldownManager().getRemainingCooldown(player, cooldownId);
+                String formatted = String.format("%.1f", remaining / 1000.0);
+                plugin.getMessageManager().sendMessage(player, "item_on_cooldown", "{cooldown_remaining}", formatted);
+                event.setCancelled(true); // Cancelamos el disparo si está en cooldown
+                return;
+            }
+
+            // 2. Comprobamos las condiciones de forma explícita
+            EffectContext context = new EffectContext(player, null, event, Collections.emptyMap(), customBow.getKey(), plugin);
+            for (Condition condition : multiShotEffect.getConditions()) { // Asumiendo un getter para conditions en BaseEffect
+                if (!condition.check(context)) {
+                    // Si una condición falla, no hacemos nada. La flecha se dispara normalmente.
+                    tagArrow((Arrow) event.getProjectile(), customBow, event.getConsumable(), true);
+                    return;
+                }
+            }
+
+            // 3. Si todo pasa, APLICAMOS el cooldown y el efecto
+            if (multiShotEffect.getCooldown() > 0) {
+                plugin.getCooldownManager().setCooldown(player, cooldownId, multiShotEffect.getCooldown());
+            }
+
+            event.setCancelled(true); // Cancelamos el disparo original para reemplazarlo
+
+            int arrowCount = multiShotEffect.arrowCount;
+            double spread = multiShotEffect.spread;
+            ItemStack arrowItem = event.getConsumable();
+
+            for (int i = 0; i < arrowCount; i++) {
+                double angle = (i - (arrowCount - 1) / 2.0) * spread;
+                Vector rotatedDirection = player.getEyeLocation().getDirection().clone().rotateAroundY(Math.toRadians(angle));
+
+                Arrow newArrow = player.launchProjectile(Arrow.class, rotatedDirection);
+                newArrow.setPickupStatus(Arrow.PickupStatus.CREATIVE_ONLY);
+
+                if (multiShotEffect.copyCustomArrowMeta) { /* ... tu lógica para copiar meta ... */ }
+                tagArrow(newArrow, customBow, arrowItem, multiShotEffect.propagateArrowEffects);
+            }
+
+        } else {
+            // Si no hay efecto MULTI_SHOT, etiquetamos la flecha normalmente
+            tagArrow((Arrow) event.getProjectile(), customBow, event.getConsumable(), true);
+        }
+    }
+
+    private void tagArrow(Arrow arrow, CustomItem customBow, ItemStack arrowItem, boolean shouldTagCustomArrow) {
         if (customBow != null) {
             arrow.getPersistentDataContainer().set(bowKey, PersistentDataType.STRING, customBow.getKey());
         }
-
-        // Etiquetamos la flecha con la ID de la FLECHA (si es personalizada)
-        ItemStack arrowItem = event.getConsumable();
-        CustomItem customArrow = customItemManager.getCustomItemByItemStack(arrowItem);
-        if (customArrow != null) {
-            arrow.getPersistentDataContainer().set(arrowKey, PersistentDataType.STRING, customArrow.getKey());
+        if (shouldTagCustomArrow) {
+            CustomItem customArrow = customItemManager.getCustomItemByItemStack(arrowItem);
+            if (customArrow != null) {
+                arrow.getPersistentDataContainer().set(arrowKey, PersistentDataType.STRING, customArrow.getKey());
+            }
         }
     }
 

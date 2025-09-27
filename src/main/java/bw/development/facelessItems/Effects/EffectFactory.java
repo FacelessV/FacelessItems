@@ -155,6 +155,12 @@ public class EffectFactory {
             }
         }
 
+        if (conditionsMap.containsKey("is_day")) {
+            // We get the boolean value (true for day, false for night)
+            boolean mustBeDay = (boolean) conditionsMap.getOrDefault("is_day", true);
+            conditions.add(new TimeCondition(mustBeDay));
+        }
+
         return conditions;
     }
 
@@ -295,6 +301,16 @@ public class EffectFactory {
                 double radius = getSafeDouble(properties.get("radius"), 8.0);
                 double strength = getSafeDouble(properties.get("strength"), 1.5);
                 yield new PullEffect(radius, strength, target, conditions, cooldown, cooldownId);
+            }
+
+            case "MULTI_SHOT" -> {
+                int arrowCount = getSafeInt(properties.get("arrow_count"), 3);
+                double spread = getSafeDouble(properties.get("spread"), 10.0);
+                // Leemos los nuevos booleanos, con 'true' como valor por defecto
+                boolean propagate = (boolean) properties.getOrDefault("propagate_arrow_effects", true);
+                boolean copyMeta = (boolean) properties.getOrDefault("copy_custom_arrow_meta", true);
+
+                yield new MultiShotEffect(arrowCount, spread, propagate, copyMeta, conditions, cooldown, cooldownId);
             }
 
             default -> null;

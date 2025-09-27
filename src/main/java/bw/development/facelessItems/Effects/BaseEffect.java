@@ -63,4 +63,16 @@ public abstract class BaseEffect implements Effect {
 
     @Override
     public abstract String getType();
+
+    public int getCooldown() {
+        return cooldown;
+    }
+
+    public String getCooldownId() {
+        return cooldownId;
+    }
+
+    public List<Condition> getConditions() {
+        return conditions;
+    }
 }
