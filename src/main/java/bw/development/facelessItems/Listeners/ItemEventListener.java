@@ -5,6 +5,9 @@ import bw.development.facelessItems.Effects.Conditions.Condition;
 import bw.development.facelessItems.FacelessItems;
 import bw.development.facelessItems.Items.CustomItem;
 import bw.development.facelessItems.Items.CustomItemManager;
+import bw.development.facelessItems.Sets.ArmorSet;
+import bw.development.facelessItems.Sets.ArmorSetBonus;
+import bw.development.facelessItems.Sets.SetManager;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
@@ -41,54 +44,68 @@ public class ItemEventListener implements Listener {
         this.arrowKey = new NamespacedKey(plugin, "custom_arrow_itself");
     }
 
-    // --- NUEVO MÉTODO PARA 'on_damage_taken' ---
     @EventHandler
     public void onPlayerDamage(EntityDamageEvent event) {
-        // 1. Solo nos interesa si la entidad dañada es un jugador
         if (!(event.getEntity() instanceof Player player)) {
             return;
         }
 
-        // 2. Buscamos al atacante (si existe)
         Entity attacker = null;
         if (event instanceof EntityDamageByEntityEvent damageByEntityEvent) {
             attacker = damageByEntityEvent.getDamager();
         }
 
-        // 3. Iteramos sobre las 4 piezas de armadura del jugador
+        // --- LÓGICA EXISTENTE PARA EFECTOS DE ÍTEMS INDIVIDUALES ---
         for (ItemStack armorPiece : player.getInventory().getArmorContents()) {
-            if (armorPiece == null || armorPiece.getType().isAir()) {
-                continue;
-            }
-
             CustomItem customItem = customItemManager.getCustomItemByItemStack(armorPiece);
-            if (customItem == null) {
-                continue;
+            if (customItem != null) {
+                List<Effect> effects = customItem.getEffects("on_damage_taken");
+                if (!effects.isEmpty()) {
+                    EffectContext context = new EffectContext(player, attacker, event, Map.of("damage_amount", event.getDamage()), customItem.getKey(), plugin);
+                    for (Effect effect : effects) {
+                        effect.apply(context);
+                    }
+                }
             }
+        }
 
-            // 4. Obtenemos los efectos para el trigger 'on_damage_taken'
-            List<Effect> effects = customItem.getEffects("on_damage_taken");
-            if (effects.isEmpty()) {
-                continue;
+        // --- ¡NUEVA LÓGICA PARA LOS BONUS DE SET! ---
+        SetManager setManager = plugin.getSetManager();
+        if (setManager == null) return;
+
+        // 1. Contamos cuántas piezas de cada set lleva el jugador
+        Map<ArmorSet, Integer> setPiecesCount = new HashMap<>();
+        for (ItemStack armorPiece : player.getInventory().getArmorContents()) {
+            CustomItem customItem = customItemManager.getCustomItemByItemStack(armorPiece);
+            if (customItem != null) {
+                for (ArmorSet set : setManager.getArmorSets()) {
+                    if (set.containsItem(customItem.getKey())) {
+                        setPiecesCount.put(set, setPiecesCount.getOrDefault(set, 0) + 1);
+                    }
+                }
             }
+        }
 
-            // 5. Creamos el contexto para este evento
-            Map<String, Object> data = new HashMap<>();
-            data.put("damage_amount", event.getDamage());
+        // 2. Iteramos sobre los sets que el jugador tiene equipados
+        for (Map.Entry<ArmorSet, Integer> entry : setPiecesCount.entrySet()) {
+            ArmorSet currentSet = entry.getKey();
+            int pieceCount = entry.getValue();
 
-            // Aquí, 'user' es el jugador que recibe el daño y 'targetEntity' es el atacante
-            EffectContext context = new EffectContext(
-                    player,
-                    attacker,
-                    event,
-                    data,
-                    customItem.getKey(),
-                    plugin
-            );
+            // 3. Obtenemos el bonus correspondiente al número de piezas
+            ArmorSetBonus bonus = currentSet.getBonus(pieceCount);
+            if (bonus != null) {
+                // 4. Buscamos si este bonus tiene efectos para el trigger 'on_damage_taken'
+                List<BaseEffect> triggeredEffects = bonus.getTriggeredEffects().get("on_damage_taken");
+                if (triggeredEffects != null && !triggeredEffects.isEmpty()) {
 
-            // 6. Aplicamos cada efecto
-            for (Effect effect : effects) {
-                effect.apply(context);
+                    // Creamos un contexto para los efectos del set
+                    EffectContext setContext = new EffectContext(player, attacker, event, Map.of("damage_amount", event.getDamage()), currentSet.getKey(), plugin);
+
+                    // 5. Aplicamos los efectos del set
+                    for (Effect effect : triggeredEffects) {
+                        effect.apply(setContext);
+                    }
+                }
             }
         }
     }
@@ -507,4 +524,6 @@ public class ItemEventListener implements Listener {
             effect.apply(context);
         }
     }
+
+
 }

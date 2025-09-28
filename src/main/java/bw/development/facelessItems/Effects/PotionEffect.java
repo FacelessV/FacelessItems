@@ -14,10 +14,7 @@ public class PotionEffect extends TargetedEffect {
     private final int duration;
     private final int amplifier;
 
-    // --- CONSTRUCTOR UPDATED ---
-    // Now accepts cooldown and cooldownId
     public PotionEffect(PotionEffectType potionType, int duration, int amplifier, EffectTarget target, List<Condition> conditions, int cooldown, String cooldownId) {
-        // And passes them to the parent class (TargetedEffect)
         super(target, conditions, cooldown, cooldownId);
         this.potionType = potionType;
         this.duration = duration;
@@ -26,7 +23,6 @@ public class PotionEffect extends TargetedEffect {
 
     @Override
     protected void applyToTarget(LivingEntity target, Player user, Event event, EffectContext context) {
-        // This logic is perfect and needs no changes.
         org.bukkit.potion.PotionEffect effect = new org.bukkit.potion.PotionEffect(potionType, duration, amplifier);
         target.addPotionEffect(effect);
     }
@@ -34,5 +30,16 @@ public class PotionEffect extends TargetedEffect {
     @Override
     public String getType() {
         return "POTION";
+    }
+
+    // --- MÉTODOS GETTERS NECESARIOS ---
+    // Para que ArmorSetChecker pueda leer las propiedades del efecto.
+
+    public PotionEffectType getPotionType() {
+        return potionType;
+    }
+
+    public int getAmplifier() {
+        return amplifier;
     }
 }

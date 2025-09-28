@@ -1,5 +1,6 @@
 package bw.development.facelessItems.Items;
 
+import bw.development.facelessItems.Effects.BaseEffect;
 import bw.development.facelessItems.Effects.Effect;
 import bw.development.facelessItems.Effects.EffectFactory;
 import bw.development.facelessItems.FacelessItems;
@@ -237,7 +238,16 @@ public class CustomItemManager {
 
                 ItemStack finalItem = auraSkillsManager.applyStatsToItem(itemStack, auraSkillsStats);
 
-                CustomItem customItem = new CustomItem(key, finalItem, config, auraSkillsStats, customExperience);
+                List<BaseEffect> passiveEffects = new ArrayList<>();
+                if (config.isConfigurationSection("passive_effects")) {
+                    // Reutilizamos nuestro parseador de efectos
+                    passiveEffects = EffectFactory.parseTriggerEffects(config.get("passive_effects")).stream()
+                            .filter(BaseEffect.class::isInstance)
+                            .map(BaseEffect.class::cast)
+                            .collect(Collectors.toList());
+                }
+
+                CustomItem customItem = new CustomItem(key, finalItem, config, auraSkillsStats, customExperience, passiveEffects);
 
                 // 4. Cargamos los efectos del plugin
                 if (config.isConfigurationSection("effects")) {

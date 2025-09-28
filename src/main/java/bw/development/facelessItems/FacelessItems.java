@@ -1,5 +1,6 @@
 package bw.development.facelessItems;
 
+import bw.development.facelessItems.Api.FacelessItemsAPI;
 import bw.development.facelessItems.Commands.FacelessItemsCommand;
 import bw.development.facelessItems.Commands.GiveItemCommand;
 import bw.development.facelessItems.Commands.GiveItemTabCompleter;
@@ -9,6 +10,8 @@ import bw.development.facelessItems.Items.CustomItemManager;
 import bw.development.facelessItems.Listeners.ItemEventListener;
 import bw.development.facelessItems.Managers.MessageManager;
 import bw.development.facelessItems.Rarity.RarityManager;
+import bw.development.facelessItems.Sets.ArmorSetChecker;
+import bw.development.facelessItems.Sets.SetManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class FacelessItems extends JavaPlugin {
@@ -17,6 +20,8 @@ public class FacelessItems extends JavaPlugin {
     private RarityManager rarityManager;
     private CooldownManager cooldownManager; // 2. Add CooldownManager field
     private MessageManager messageManager;
+    private SetManager setManager; // <-- AÑADIR CAMPO
+    private ArmorSetChecker armorSetChecker;
 
     @Override
     public void onEnable() {
@@ -27,10 +32,18 @@ public class FacelessItems extends JavaPlugin {
             this.messageManager = new MessageManager(this);
             this.cooldownManager = new CooldownManager(); // 3. Initialize the manager
             this.rarityManager = new RarityManager(this);
+            this.setManager = new SetManager(this);
+
             this.rarityManager.loadRarities();
 
             this.customItemManager = new CustomItemManager(this);
             this.customItemManager.loadItems();
+
+            // Inicializamos la API y le pasamos el gestor de ítems.
+            FacelessItemsAPI.initialize(customItemManager);
+
+            this.armorSetChecker = new ArmorSetChecker(this, setManager);
+            this.armorSetChecker.runTaskTimer(this, 0L, 20L); // Starts immediately, runs every 20 ticks (1 second)
 
             getServer().getPluginManager().registerEvents(new ItemEventListener(this, customItemManager), this);
 
@@ -82,5 +95,9 @@ public class FacelessItems extends JavaPlugin {
 
     public MessageManager getMessageManager() {
         return messageManager;
+    }
+
+    public SetManager getSetManager() {
+        return setManager;
     }
 }

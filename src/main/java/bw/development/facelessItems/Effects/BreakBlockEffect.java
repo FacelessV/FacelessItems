@@ -54,7 +54,6 @@ public class BreakBlockEffect extends BaseEffect {
     private SmeltEffect smeltModifier;
     private ReplantEffect replantModifier; // <-- AÑADIR NUEVO CAMPO
 
-    // --- CONSTRUCTOR ACTUALIZADO ---
     public BreakBlockEffect(int radius, int layers, List<Material> mineableBlocks, int range, EffectTarget targetType, List<Condition> conditions, int cooldown, String cooldownId) {
         super(conditions, cooldown, cooldownId);
         this.radius = radius;
@@ -82,32 +81,22 @@ public class BreakBlockEffect extends BaseEffect {
         if (player == null) return;
 
         Block startBlock = null;
-
-        // Lógica para determinar el bloque objetivo
         if (targetType == EffectTarget.BLOCK_IN_SIGHT) {
-            // Usamos Ray Tracing para encontrar el bloque que mira el jugador
             RayTraceResult result = player.rayTraceBlocks(range);
             if (result != null && result.getHitBlock() != null) {
                 startBlock = result.getHitBlock();
             }
         } else if (context.getData().get("broken_block") instanceof Block blockFromContext) {
-            // Mantenemos la lógica antigua para el trigger on_mine
             startBlock = blockFromContext;
         }
 
         if (startBlock == null) return;
-
-        if (!mineableBlocks.isEmpty() && !mineableBlocks.contains(startBlock.getType())) {
-            return;
-        }
+        if (!mineableBlocks.isEmpty() && !mineableBlocks.contains(startBlock.getType())) return;
 
         ItemStack tool = player.getInventory().getItemInMainHand();
-        if (tool.getType().isAir() || !TOOLS.contains(tool.getType())) {
-            return;
-        }
+        if (tool.getType().isAir() || !TOOLS.contains(tool.getType())) return;
 
         List<Block> brokenBlocksInArea = new ArrayList<>();
-
         Location center = startBlock.getLocation();
         Vector direction = player.getEyeLocation().getDirection();
         BlockFace face = BlockFace.SOUTH;
@@ -132,49 +121,32 @@ public class BreakBlockEffect extends BaseEffect {
                         } else {
                             blockToBreakLoc.add(x, i * face.getModY(), z);
                         }
-
                         Block currentBlock = blockToBreakLoc.getBlock();
+
+                        if (currentBlock.getType().getHardness() < 0 || currentBlock.getType() == Material.AIR) {
+                            continue;
+                        }
                         if (!mineableBlocks.isEmpty() && !mineableBlocks.contains(currentBlock.getType())) {
-                            continue; // Si el bloque no es un cultivo de la lista, lo ignoramos.
+                            continue;
                         }
 
-                        // Primero, verificamos si hay que replantar
+                        boolean wasHandledByModifier = false;
+
+                        // Priority 1: Replant
                         if (replantModifier != null) {
                             EffectContext blockContext = new EffectContext(player, null, context.getBukkitEvent(), Map.of("broken_block", currentBlock), context.getItemKey(), context.getPlugin());
                             boolean conditionsMet = replantModifier.getConditions().stream().allMatch(c -> c.check(blockContext));
-
                             if (conditionsMet && currentBlock.getBlockData() instanceof Ageable) {
                                 breakAndReplant(currentBlock, player, tool, context.getPlugin());
-                                brokenBlocksInArea.add(currentBlock);
-                                continue; // Importante: saltamos al siguiente bloque del bucle
+                                wasHandledByModifier = true;
                             }
                         }
 
-                        boolean wasSmelted = false;
-                        if (smeltModifier != null) {
-                            EffectContext blockContext = new EffectContext(player, null, context.getBukkitEvent(), Map.of("broken_block", currentBlock), context.getItemKey(), context.getPlugin());
-                            boolean conditionsMet = true;
-                            for (Condition condition : smeltModifier.getConditions()) {
-                                if (!condition.check(blockContext)) {
-                                    conditionsMet = false;
-                                    break;
-                                }
-                            }
-                            if (conditionsMet) {
-                                smeltBlock(currentBlock, tool);
-                                wasSmelted = true;
-                            }
+                        // If not replanted, proceed with normal breaking/smelting
+                        if (!wasHandledByModifier) {
+                            breakNormally(currentBlock, player, tool, context);
                         }
 
-                        if (!wasSmelted) {
-                            if (player.getGameMode() == GameMode.CREATIVE) {
-                                currentBlock.breakNaturally();
-                            } else {
-                                currentBlock.breakNaturally(tool);
-                            }
-                        }
-
-                        breakNormally(currentBlock, player, tool, context);
                         brokenBlocksInArea.add(currentBlock);
                     }
                 }
@@ -201,6 +173,7 @@ public class BreakBlockEffect extends BaseEffect {
         }
         block.setType(Material.AIR);
     }
+
     private void breakNormally(Block block, Player player, ItemStack tool, EffectContext context) {
         boolean wasSmelted = false;
         if (smeltModifier != null) {

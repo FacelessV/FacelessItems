@@ -1,0 +1,30 @@
+# Definición de los sets de armadura
+sets:
+  # Identificador único del set
+  volcanico:
+    display-name: "&cSet Volcánico"
+    items:
+      - coraza_volcanica
+      - casco_volcanico
+      - grebas_volcanicas
+      - botas_volcanicas
+    bonuses:
+      # Bonus por llevar 2 piezas del set
+      '2':
+        passive_effects:
+          - type: POTION
+            potion_type: FIRE_RESISTANCE
+            amplifier: 0
+      # Bonus por llevar 4 piezas (el set completo)
+      '4':
+        passive_effects:
+          - type: POTION
+            potion_type: STRENGTH
+            amplifier: 0
+        triggered_effects:
+          on_damage_taken:
+            - type: EXPLOSION
+              power: 1.5
+              target: PLAYER
+              conditions:
+                chance: 20

@@ -1,7 +1,9 @@
 package bw.development.facelessItems.Items;
 
+import bw.development.facelessItems.Effects.BaseEffect;
 import bw.development.facelessItems.Effects.Effect;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration; // Añadido por si acaso
 import org.bukkit.inventory.ItemStack;
 import java.util.Collections;
 import java.util.HashMap;
@@ -14,15 +16,17 @@ public class CustomItem {
     private final ItemStack itemStack;
     private final FileConfiguration config;
     private final Map<String, List<Effect>> effectsByTrigger = new HashMap<>();
-    private final List<Map<String, Object>> auraSkillsStats; // <-- NUEVO CAMPO
-    private final int customExperience; // <-- AÑADIR ESTE CAMPO
+    private final List<BaseEffect> passiveEffects;
+    private final List<Map<String, Object>> auraSkillsStats;
+    private final int customExperience;
 
-    public CustomItem(String key, ItemStack itemStack, FileConfiguration config, List<Map<String, Object>> auraSkillsStats, int customExperience) {
+    public CustomItem(String key, ItemStack itemStack, FileConfiguration config, List<Map<String, Object>> auraSkillsStats, int customExperience, List<BaseEffect> passiveEffects) {
         this.key = key;
         this.itemStack = itemStack;
         this.config = config;
         this.auraSkillsStats = auraSkillsStats;
         this.customExperience = customExperience;
+        this.passiveEffects = passiveEffects;
     }
 
     public String getKey() {
@@ -43,6 +47,11 @@ public class CustomItem {
 
     public List<Effect> getEffects(String trigger) {
         return effectsByTrigger.getOrDefault(trigger, Collections.emptyList());
+    }
+
+    // --- MÉTODO GETTER AÑADIDO ---
+    public List<BaseEffect> getPassiveEffects() {
+        return passiveEffects;
     }
 
     public List<Map<String, Object>> getAuraSkillsStats() {

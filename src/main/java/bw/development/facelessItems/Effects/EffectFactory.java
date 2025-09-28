@@ -215,6 +215,9 @@ public class EffectFactory {
                 List<Material> mineableBlocks = getSafeMaterialList(properties.get("mineable_blocks"));
                 int range = getSafeInt(properties.get("range"), 10);
 
+                // We no longer read or pass 'replant' here.
+
+                // --- CORRECTED CONSTRUCTOR CALL ---
                 yield new BreakBlockEffect(radius, layers, mineableBlocks, range, target, conditions, cooldown, cooldownId);
             }
             case "VEIN_MINE" -> {
@@ -366,6 +369,17 @@ public class EffectFactory {
             case "GIVE_EXPERIENCE" -> {
                 int amount = getSafeInt(properties.get("amount"), 10);
                 yield new GiveExperienceEffect(amount, target, conditions, cooldown, cooldownId);
+            }
+
+            case "DAMAGE_MULTIPLIER" -> {
+                double multiplier = getSafeDouble(properties.get("multiplier"), 1.0);
+                String applyToStr = (String) properties.getOrDefault("apply_to", "BOTH");
+                try {
+                    DamageMultiplierEffect.ApplyType applyType = DamageMultiplierEffect.ApplyType.valueOf(applyToStr.toUpperCase(Locale.ROOT));
+                    yield new DamageMultiplierEffect(multiplier, applyType, conditions, cooldown, cooldownId);
+                } catch (IllegalArgumentException e) {
+                    yield null;
+                }
             }
 
             default -> null;
