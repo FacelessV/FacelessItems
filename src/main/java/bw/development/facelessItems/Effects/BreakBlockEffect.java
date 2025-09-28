@@ -74,13 +74,13 @@ public class BreakBlockEffect extends BaseEffect {
     }
 
 
-    // --- MÉTODO APPLYEFFECT ACTUALIZADO ---
     @Override
     protected void applyEffect(EffectContext context) {
         Player player = context.getUser();
         if (player == null) return;
 
         Block startBlock = null;
+
         if (targetType == EffectTarget.BLOCK_IN_SIGHT) {
             RayTraceResult result = player.rayTraceBlocks(range);
             if (result != null && result.getHitBlock() != null) {
@@ -97,31 +97,38 @@ public class BreakBlockEffect extends BaseEffect {
         if (tool.getType().isAir() || !TOOLS.contains(tool.getType())) return;
 
         List<Block> brokenBlocksInArea = new ArrayList<>();
-        Location center = startBlock.getLocation();
         Vector direction = player.getEyeLocation().getDirection();
-        BlockFace face = BlockFace.SOUTH;
-        if (Math.abs(direction.getX()) > Math.abs(direction.getZ())) {
-            face = (direction.getX() > 0) ? BlockFace.EAST : BlockFace.WEST;
+
+        // Find the primary axis of the player's view (X, Y, or Z)
+        BlockFace primaryFace;
+        double absX = Math.abs(direction.getX());
+        double absY = Math.abs(direction.getY());
+        double absZ = Math.abs(direction.getZ());
+        if (absY > absX && absY > absZ) {
+            primaryFace = direction.getY() > 0 ? BlockFace.UP : BlockFace.DOWN;
+        } else if (absX > absZ) {
+            primaryFace = direction.getX() > 0 ? BlockFace.EAST : BlockFace.WEST;
         } else {
-            face = (direction.getZ() > 0) ? BlockFace.SOUTH : BlockFace.NORTH;
-        }
-        if (Math.abs(direction.getY()) > Math.abs(direction.getX()) && Math.abs(direction.getY()) > Math.abs(direction.getZ())) {
-            face = (direction.getY() > 0) ? BlockFace.UP : BlockFace.DOWN;
+            primaryFace = direction.getZ() > 0 ? BlockFace.SOUTH : BlockFace.NORTH;
         }
 
         for (int i = 0; i < layers; i++) {
+            // --- LOGIC CORRECTION FOR LAYERS ---
+            // Calculate the center of the current layer by moving from the start block
+            Block layerCenterBlock = startBlock.getRelative(primaryFace, i);
+
             for (int x = -radius; x <= radius; x++) {
                 for (int y = -radius; y <= radius; y++) {
                     for (int z = -radius; z <= radius; z++) {
-                        Location blockToBreakLoc = center.clone();
-                        if (face == BlockFace.NORTH || face == BlockFace.SOUTH) {
-                            blockToBreakLoc.add(x, y, i * face.getModZ());
-                        } else if (face == BlockFace.EAST || face == BlockFace.WEST) {
-                            blockToBreakLoc.add(i * face.getModX(), y, z);
-                        } else {
-                            blockToBreakLoc.add(x, i * face.getModY(), z);
+                        Block currentBlock;
+                        // Build the 3x3 plane based on the primary axis
+                        if (primaryFace == BlockFace.UP || primaryFace == BlockFace.DOWN) {
+                            currentBlock = layerCenterBlock.getRelative(x, 0, z);
+                        } else if (primaryFace == BlockFace.EAST || primaryFace == BlockFace.WEST) {
+                            currentBlock = layerCenterBlock.getRelative(0, y, z);
+                        } else { // NORTH or SOUTH
+                            currentBlock = layerCenterBlock.getRelative(x, y, 0);
                         }
-                        Block currentBlock = blockToBreakLoc.getBlock();
 
                         if (currentBlock.getType().getHardness() < 0 || currentBlock.getType() == Material.AIR) {
                             continue;
@@ -132,7 +139,6 @@ public class BreakBlockEffect extends BaseEffect {
 
                         boolean wasHandledByModifier = false;
 
-                        // Priority 1: Replant
                         if (replantModifier != null) {
                             EffectContext blockContext = new EffectContext(player, null, context.getBukkitEvent(), Map.of("broken_block", currentBlock), context.getItemKey(), context.getPlugin());
                             boolean conditionsMet = replantModifier.getConditions().stream().allMatch(c -> c.check(blockContext));
@@ -142,7 +148,6 @@ public class BreakBlockEffect extends BaseEffect {
                             }
                         }
 
-                        // If not replanted, proceed with normal breaking/smelting
                         if (!wasHandledByModifier) {
                             breakNormally(currentBlock, player, tool, context);
                         }

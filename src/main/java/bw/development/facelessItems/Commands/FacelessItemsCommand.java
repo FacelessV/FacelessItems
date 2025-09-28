@@ -20,12 +20,13 @@ public class FacelessItemsCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        // Esta es la única declaración de 'player' que necesitamos.
         Player player = (sender instanceof Player) ? (Player) sender : null;
 
         if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
-            // Los mensajes de ayuda pueden quedar en el código, ya que no son mensajes de feedback
             sender.sendMessage("§eFacelessItems - Commands:");
-            sender.sendMessage("§7/facelessitems reload§f - Reloads items from /items/");
+            sender.sendMessage("§7/facelessitems list§f - Abre el menú de ítems.");
+            sender.sendMessage("§7/facelessitems reload§f - Recarga los ítems y configuraciones.");
             return true;
         }
 
@@ -38,10 +39,27 @@ public class FacelessItemsCommand implements CommandExecutor {
 
             plugin.getRarityManager().loadRarities();
             plugin.getCustomItemManager().loadItems();
+            plugin.getSetManager().loadSets(); // No olvides recargar los sets también
 
             if (player != null) messageManager.sendMessage(player, "reload_success");
             else sender.sendMessage(messageManager.getMessage("reload_success"));
 
+            return true;
+        }
+
+        if (args[0].equalsIgnoreCase("list")) {
+            // --- CORRECCIÓN AQUÍ ---
+            // Usamos la variable 'player' que declaramos arriba.
+            if (player == null) {
+                sender.sendMessage("Este comando solo puede ser usado por un jugador.");
+                return true;
+            }
+            if (!player.hasPermission("facelessitems.admin")) {
+                messageManager.sendMessage(player, "no_permission");
+                return true;
+            }
+
+            plugin.getItemsGUI().open(player, 1);
             return true;
         }
 

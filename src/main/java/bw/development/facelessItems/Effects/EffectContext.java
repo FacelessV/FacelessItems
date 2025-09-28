@@ -6,6 +6,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 public class EffectContext {
@@ -21,7 +22,9 @@ public class EffectContext {
         this.user = user;
         this.targetEntity = targetEntity;
         this.bukkitEvent = bukkitEvent;
-        this.data = data != null ? data : Collections.emptyMap();
+        // --- LÍNEA CORREGIDA ---
+        // Nos aseguramos de que el mapa sea siempre mutable creando un nuevo HashMap.
+        this.data = data != null ? new HashMap<>(data) : new HashMap<>();
         this.itemKey = itemKey;
         this.plugin = plugin;
     }

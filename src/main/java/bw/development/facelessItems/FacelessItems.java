@@ -6,6 +6,8 @@ import bw.development.facelessItems.Commands.GiveItemCommand;
 import bw.development.facelessItems.Commands.GiveItemTabCompleter;
 import bw.development.facelessItems.Effects.CooldownManager; // 1. Import CooldownManager
 import bw.development.facelessItems.Effects.ShadowCloneEffect;
+import bw.development.facelessItems.Gui.GuiListener;
+import bw.development.facelessItems.Gui.ItemsGUI;
 import bw.development.facelessItems.Items.CustomItemManager;
 import bw.development.facelessItems.Listeners.ItemEventListener;
 import bw.development.facelessItems.Managers.MessageManager;
@@ -18,10 +20,11 @@ public class FacelessItems extends JavaPlugin {
     private static FacelessItems instance;
     private CustomItemManager customItemManager;
     private RarityManager rarityManager;
-    private CooldownManager cooldownManager; // 2. Add CooldownManager field
+    private CooldownManager cooldownManager;
     private MessageManager messageManager;
-    private SetManager setManager; // <-- AÑADIR CAMPO
+    private SetManager setManager;
     private ArmorSetChecker armorSetChecker;
+    private ItemsGUI itemsGUI;
 
     @Override
     public void onEnable() {
@@ -42,9 +45,12 @@ public class FacelessItems extends JavaPlugin {
             // Inicializamos la API y le pasamos el gestor de ítems.
             FacelessItemsAPI.initialize(customItemManager);
 
+            this.itemsGUI = new ItemsGUI(customItemManager);
+
             this.armorSetChecker = new ArmorSetChecker(this, setManager);
             this.armorSetChecker.runTaskTimer(this, 0L, 20L); // Starts immediately, runs every 20 ticks (1 second)
 
+            getServer().getPluginManager().registerEvents(new GuiListener(itemsGUI), this);
             getServer().getPluginManager().registerEvents(new ItemEventListener(this, customItemManager), this);
 
             if (getCommand("giveitem") == null) {
@@ -99,5 +105,9 @@ public class FacelessItems extends JavaPlugin {
 
     public SetManager getSetManager() {
         return setManager;
+    }
+
+    public ItemsGUI getItemsGUI() {
+        return itemsGUI;
     }
 }
