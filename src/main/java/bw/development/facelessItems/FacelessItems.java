@@ -37,16 +37,18 @@ public class FacelessItems extends JavaPlugin {
             if (getCommand("giveitem") == null) {
                 getLogger().severe("El comando 'giveitem' no está registrado en plugin.yml!");
             } else {
-                getCommand("giveitem").setExecutor(new GiveItemCommand(customItemManager));
+                // --- LÍNEA MODIFICADA ---
+                getCommand("giveitem").setExecutor(new GiveItemCommand(customItemManager, messageManager));
+                // El TabCompleter no necesita el MessageManager
                 getCommand("giveitem").setTabCompleter(new GiveItemTabCompleter(customItemManager));
             }
 
             if (getCommand("facelessitems") == null) {
                 getLogger().severe("El comando 'facelessitems' no está registrado en plugin.yml!");
             } else {
-                getCommand("facelessitems").setExecutor(new FacelessItemsCommand(this));
+                // --- LÍNEA MODIFICADA ---
+                getCommand("facelessitems").setExecutor(new FacelessItemsCommand(this, messageManager));
             }
-
             getLogger().info("FacelessItems habilitado con " + customItemManager.getItemCount() + " items cargados.");
         } catch (Exception e) {
             getLogger().severe("Error crítico en onEnable: " + e.getMessage());

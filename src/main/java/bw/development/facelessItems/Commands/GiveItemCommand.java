@@ -2,8 +2,8 @@ package bw.development.facelessItems.Commands;
 
 import bw.development.facelessItems.Items.CustomItem;
 import bw.development.facelessItems.Items.CustomItemManager;
+import bw.development.facelessItems.Managers.MessageManager; // <-- AÑADIR IMPORT
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -11,46 +11,57 @@ import org.bukkit.entity.Player;
 
 public class GiveItemCommand implements CommandExecutor {
 
-    // --- LÍNEA ELIMINADA ---
-    // private final FacelessItems plugin;
     private final CustomItemManager customItemManager;
+    private final MessageManager messageManager; // <-- AÑADIR CAMPO
 
-    // --- CONSTRUCTOR CORREGIDO ---
-    // Ahora solo pide el CustomItemManager, que es lo único que usa.
-    public GiveItemCommand(CustomItemManager customItemManager) {
+    // --- CONSTRUCTOR ACTUALIZADO ---
+    public GiveItemCommand(CustomItemManager customItemManager, MessageManager messageManager) {
         this.customItemManager = customItemManager;
+        this.messageManager = messageManager;
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        // ... tu lógica de comando (que está perfecta) no cambia ...
+        // Envolvemos al sender en un Player si es posible, para los mensajes
+        Player playerSender = (sender instanceof Player) ? (Player) sender : null;
+
         if (!sender.hasPermission("facelessitems.giveitem")) {
-            sender.sendMessage(ChatColor.RED + "No tienes permiso para usar este comando.");
+            if (playerSender != null) messageManager.sendMessage(playerSender, "no_permission");
+            else sender.sendMessage(messageManager.getMessage("no_permission"));
             return true;
         }
 
         if (args.length != 2) {
-            sender.sendMessage(ChatColor.RED + "Uso correcto: /giveitem <jugador> <item>");
+            sender.sendMessage("§cUsage: /giveitem <player> <item>"); // Mensaje de uso puede quedar así
             return true;
         }
 
         Player target = Bukkit.getPlayerExact(args[0]);
         if (target == null || !target.isOnline()) {
-            sender.sendMessage(ChatColor.RED + "El jugador '" + args[0] + "' no está en línea.");
+            if (playerSender != null) messageManager.sendMessage(playerSender, "player_not_found", "{player}", args[0]);
+            else sender.sendMessage(messageManager.getMessage("player_not_found", "{player}", args[0]));
             return true;
         }
 
         String itemKey = args[1].toLowerCase();
-
         CustomItem customItem = customItemManager.getCustomItemByKey(itemKey);
         if (customItem == null) {
-            sender.sendMessage(ChatColor.RED + "El ítem '" + itemKey + "' no existe.");
+            if (playerSender != null) messageManager.sendMessage(playerSender, "item_not_found", "{item_key}", itemKey);
+            else sender.sendMessage(messageManager.getMessage("item_not_found", "{item_key}", itemKey));
             return true;
         }
 
+        String displayName = customItem.getItemStack().getItemMeta().getDisplayName();
         target.getInventory().addItem(customItem.getItemStack());
-        sender.sendMessage(ChatColor.GREEN + "Has dado el ítem " + ChatColor.RESET + customItem.getItemStack().getItemMeta().getDisplayName() + ChatColor.GREEN + " a " + target.getName());
-        target.sendMessage(ChatColor.GREEN + "Has recibido un ítem personalizado: " + customItem.getItemStack().getItemMeta().getDisplayName());
+
+        if (playerSender != null) {
+            messageManager.sendMessage(playerSender, "item_given_sender", "{item_name}", displayName, "{player}", target.getName());
+        } else {
+            // Mensaje para la consola
+            sender.sendMessage(messageManager.getMessage("item_given_sender", "{item_name}", displayName, "{player}", target.getName()));
+        }
+
+        messageManager.sendMessage(target, "item_given_receiver", "{item_name}", displayName);
 
         return true;
     }

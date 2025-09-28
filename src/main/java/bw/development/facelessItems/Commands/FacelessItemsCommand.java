@@ -1,47 +1,51 @@
 package bw.development.facelessItems.Commands;
 
 import bw.development.facelessItems.FacelessItems;
-import bw.development.facelessItems.Items.CustomItemManager;
-import bw.development.facelessItems.Rarity.RarityManager;
+import bw.development.facelessItems.Managers.MessageManager; // <-- AÑADIR IMPORT
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
-import org.bukkit.ChatColor;
+import org.bukkit.entity.Player;
 
 public class FacelessItemsCommand implements CommandExecutor {
 
     private final FacelessItems plugin;
+    private final MessageManager messageManager; // <-- AÑADIR CAMPO
 
-    public FacelessItemsCommand(FacelessItems plugin) {
+    // --- CONSTRUCTOR ACTUALIZADO ---
+    public FacelessItemsCommand(FacelessItems plugin, MessageManager messageManager) {
         this.plugin = plugin;
+        this.messageManager = messageManager;
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        Player player = (sender instanceof Player) ? (Player) sender : null;
+
         if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
-            sender.sendMessage(ChatColor.YELLOW + "FacelessItems - Comandos:");
-            sender.sendMessage(ChatColor.GRAY + "/facelessitems reload" + ChatColor.WHITE + " - Recarga los ítems desde /items/");
+            // Los mensajes de ayuda pueden quedar en el código, ya que no son mensajes de feedback
+            sender.sendMessage("§eFacelessItems - Commands:");
+            sender.sendMessage("§7/facelessitems reload§f - Reloads items from /items/");
             return true;
         }
 
         if (args[0].equalsIgnoreCase("reload")) {
             if (!sender.hasPermission("facelessitems.admin")) {
-                sender.sendMessage(ChatColor.RED + "No tienes permiso para usar este comando.");
+                if (player != null) messageManager.sendMessage(player, "no_permission");
+                else sender.sendMessage(messageManager.getMessage("no_permission"));
                 return true;
             }
 
-            RarityManager rarityManager = plugin.getRarityManager();
-            rarityManager.loadRarities();
-            sender.sendMessage(ChatColor.GREEN + "¡Rarezas recargadas exitosamente!");
+            plugin.getRarityManager().loadRarities();
+            plugin.getCustomItemManager().loadItems();
 
-            CustomItemManager itemManager = plugin.getCustomItemManager();
-            itemManager.loadItems();
-            sender.sendMessage(ChatColor.GREEN + "¡Ítems recargados exitosamente!");
+            if (player != null) messageManager.sendMessage(player, "reload_success");
+            else sender.sendMessage(messageManager.getMessage("reload_success"));
 
             return true;
         }
 
-        sender.sendMessage(ChatColor.RED + "Subcomando desconocido. Usa /facelessitems help");
+        sender.sendMessage("§cUnknown subcommand. Use /facelessitems help");
         return true;
     }
 }
