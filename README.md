@@ -1,18 +1,20 @@
 # FacelessItems
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Java](https://img.shields.io/badge/Java-17+-orange.svg)
-![Spigot](https://img.shields.io/badge/Spigot--API-1.20+-red.svg)
+![Spigot API](https://img.shields.io/badge/Spigot--API-1.20+-red.svg)
 
-Un plugin avanzado de Spigot/Paper para crear ítems personalizados con un sistema modular de efectos, condiciones y cooldowns a través de archivos YAML.
+Un framework avanzado para Spigot/Paper que permite la creación de ítems, armas, herramientas y armaduras personalizadas con un sistema modular de efectos, condiciones, cooldowns y bonificaciones de set, todo a través de archivos YAML.
 
 ---
 ## Tabla de Contenidos
 
 * [Sobre el Proyecto](#-sobre-el-proyecto)
-* [Características](#-características)
+* [Características Principales](#-características-principales)
 * [Instalación](#-instalación)
-* [Uso y Configuración](#-uso-y-configuración)
+* [Configuración de un Ítem](#-configuración-de-un-ítem)
+* [Configuración de Sets](#-configuración-de-sets)
 * [Comandos y Permisos](#-comandos-y-permisos)
+* [API para Desarrolladores](#-api-para-desarrolladores)
 * [Hoja de Ruta](#-hoja-de-ruta)
 * [Contribuciones](#-contribuciones)
 * [Licencia](#-licencia)
@@ -20,75 +22,73 @@ Un plugin avanzado de Spigot/Paper para crear ítems personalizados con un siste
 ---
 ## 📖 Sobre el Proyecto
 
-**FacelessItems** nace de la necesidad de un sistema de ítems personalizados que sea a la vez fácil de usar para los administradores de servidores y extremadamente potente para los desarrolladores. En lugar de estar limitado a encantamientos básicos, este plugin permite crear habilidades complejas que reaccionan al mundo del juego de maneras dinámicas e inteligentes.
+**FacelessItems** nace de la necesidad de un sistema de ítems que vaya más allá de los encantamientos de vainilla. Permite a los administradores de servidores y diseñadores de juegos crear equipamiento con comportamientos únicos y complejos, desde espadas que lanzan rayos en cadena hasta sets de armadura que otorgan habilidades pasivas y reactivas, transformando la experiencia de juego en un verdadero RPG.
 
 ---
-## ✨ Características
+## ✨ Características Principales
 
-* **Creación Totalmente por YAML**: Define ítems en archivos `.yml` individuales y fáciles de gestionar.
-* **Sistema de Efectos Avanzado**: Asigna múltiples efectos, desde `DAMAGE` y `HEAL` hasta `EXPLOSION`, `CHAIN_LIGHTNING` o `SHADOW_CLONE`.
-* **Motor de Condiciones Poderoso**: Controla con precisión cuándo se activan los efectos usando listas blancas/negras para:
-    * Tipos de Mobs (`target_mobs`)
-    * Causa del Daño (`damage_cause`)
-    * Tipos de Bloques (`blocks`)
-    * Razón de Aparición (`spawn_reason`)
-* **Sistema de Cooldowns**: Balancea las habilidades con enfriamientos por jugador, ya sean individuales o compartidos (`cooldown_id`).
-* **Efectos en Cadena (`CHAIN`)**: Crea secuencias de efectos con retrasos para habilidades cinemáticas.
-* **Rarezas Personalizables**: Define tus propias rarezas con colores y etiquetas de lore.
-* **Integración con AuraSkills**: Añade estadísticas de AuraSkills directamente a tus ítems.
+* **Creación por YAML**: Define todos los aspectos de tus ítems en archivos `.yml` individuales y fáciles de gestionar.
+* **Sistema de Efectos Avanzado**: Más de 20 efectos pre-programados, incluyendo `EXPLOSION`, `CHAIN_LIGHTNING`, `VEIN_MINE`, `MULTI_SHOT`, `DASH`, `PULL`, y efectos modificadores como `SMELT` y `REPLANT`.
+* **Motor de Condiciones Poderoso**: Controla con precisión cuándo se activan los efectos. Usa listas blancas/negras para:
+  * Tipos de Mobs, Causa del Daño, Tipos de Bloques, Razón de Aparición, Mundos, Hora del día y Probabilidad (`chance`).
+* **Triggers Múltiples**: Activa efectos en respuesta a una gran variedad de eventos: `on_hit`, `on_use`, `on_damage_taken`, `on_kill`, `on_arrow_hit`, `on_bow_shoot`, `on_mine`, y más.
+* **Sets de Armadura**: Define sets de armadura que otorgan bonificaciones pasivas (`passive_effects`) y habilidades por trigger (`triggered_effects`) al equipar múltiples piezas.
+* **Efectos Pasivos**: Crea ítems que otorgan bonus constantes (ej: `PERMANENT_POTION`, `DAMAGE_MULTIPLIER`) solo por tenerlos equipados o en la mano.
+* **Sistema de Cooldowns**: Balancea las habilidades con enfriamientos por jugador, ya sean individuales o compartidos (`cooldown_id`), con feedback visual en la Action Bar.
+* **API para Desarrolladores**: Permite que otros plugins interactúen de forma segura con tu sistema de ítems.
+* **GUI de Administrador**: Un menú interactivo (`/fi list`) para ver y obtener todos los ítems personalizados.
+* **Totalmente Configurable**: Desde los mensajes (con placeholders) hasta las rarezas de los ítems.
 
 ---
 ## ⚙️ Instalación
 
 1.  Descarga la última versión de `FacelessItems.jar` desde la [página de Releases](https://github.com/TU_USUARIO/TU_REPOSITORIO/releases).
-2.  Coloca el archivo `.jar` en la carpeta `plugins/` de tu servidor de Spigot/Paper (versión 1.20+ recomendada).
-3.  Inicia el servidor. Se generarán las carpetas y archivos de configuración por defecto.
+2.  Coloca el archivo `.jar` en la carpeta `plugins/` de tu servidor de Spigot/Paper.
+3.  Inicia el servidor. Se generarán las carpetas y archivos de configuración (`config.yml`, `messages.yml`, `sets.yml`, etc.).
 4.  ¡Configura tus ítems y a jugar!
 
 ---
-## 🔧 Uso y Configuración
+## 🔧 Configuración de un Ítem
 
-La creación de ítems se realiza en la carpeta `plugins/FacelessItems/items/`. Cada archivo `.yml` representa un nuevo ítem.
+La creación de ítems se realiza en la carpeta `plugins/FacelessItems/items/`.
 
-#### Ejemplo: `coraza_volcanica.yml`
-Este ejemplo muestra una armadura que reacciona con una secuencia de efectos al ser golpeado por ciertos mobs.
-
+#### Ejemplo: `pico_dragon.yml`
 ```yaml
-# Identificador único del ítem
-key: coraza_volcanica
-
-# Material de Minecraft
-material: NETHERITE_CHESTPLATE
-
-# Nombre del ítem
-display-name: '&cCoraza Volcánica de Represalia'
-
-# Descripción
+key: pico_dragon
+material: NETHERITE_PICKAXE
+display-name: '&c&lPico de Aliento de Dragón'
 lore:
-  - '&7Forjada en el corazón de un volcán.'
-  - '&7Devuelve el dolor con furia ígnea.'
-
-# Rareza del ítem
-rarity: LEGENDARY
-
-# Propiedades especiales
-properties:
-  unbreakable: true
-
-# Efectos del ítem
+  - '&7Forjado con una escama de dragón.'
+  - ''
+  - '&6Habilidad Pasiva: &lFuria Minera'
+  - '&e▪ &7Rompe un área de &f3x3&7 de forma pasiva.'
+  - '&e▪ &7Funde los minerales de &fHierro, Cobre y Oro&7.'
+  - ''
+  - '&6Habilidad Activa: &lAliento de Dragón &7(Clic Derecho)'
+  - '&e▪ &7Perfora un túnel de &f3x3x5&7 a distancia.'
+  - '&8(Enfriamiento: 20 segundos)'
+rarity: MYTHIC
 effects:
-  # Trigger que se activa al recibir daño
-  on_damage_taken:
-    - type: CHAIN
-      delay: 10 # 10 ticks (0.5s) de retraso entre cada paso
-      cooldown: 5 # La secuencia completa tiene un cooldown de 5 segundos
+  on_mine:
+    - type: BREAK_BLOCK
+      radius: 1
+      layers: 1
+      mineable_blocks: [STONE, IRON_ORE, DEEPSLATE_IRON_ORE, GOLD_ORE, ...]
+    - type: SMELT
+      drop_experience: true
       conditions:
-        target_mobs: [ZOMBIE, SKELETON, HUSK, STRAY]
-        damage_cause: [ENTITY_ATTACK, PROJECTILE]
-      
-      # Lista de efectos a ejecutar en secuencia
+        blocks: [IRON_ORE, DEEPSLATE_IRON_ORE, GOLD_ORE, ...]
+  on_use:
+    - type: CHAIN
+      delay: 0
+      cooldown: 20
+      target: BLOCK_IN_SIGHT
       effects:
-        - { type: SOUND, sound_effect: BLOCK_FURNACE_FIRE_CRACKLE, target: PLAYER }
-        - { type: MESSAGE, text: "&6La coraza crepita con furia..." }
-        - { type: POTION, potion_type: GLOWING, duration: 30, target: ENTITY }
-        - { type: EXPLOSION, power: 2.5, set_fire: true, break_blocks: false, target: PLAYER }
+        - type: BREAK_BLOCK
+          radius: 1
+          layers: 5
+          range: 20
+          mineable_blocks: [STONE, IRON_ORE, ...]
+        - type: SOUND
+          sound_effect: ENTITY_ENDER_DRAGON_GROWL
+          range: 20
