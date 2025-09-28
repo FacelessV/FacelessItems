@@ -462,4 +462,49 @@ public class ItemEventListener implements Listener {
             effect.apply(context);
         }
     }
+
+    @EventHandler
+    public void onExpBottleHit(ExpBottleEvent event) {
+        ThrownExpBottle bottle = event.getEntity();
+        ProjectileSource shooter = bottle.getShooter();
+
+        // Solo nos interesa si fue lanzada por un jugador
+        if (!(shooter instanceof Player thrower)) {
+            return;
+        }
+
+        // Obtenemos el ItemStack de la botella que se lanzó
+        ItemStack item = bottle.getItem();
+        CustomItem customItem = customItemManager.getCustomItemByItemStack(item);
+        if (customItem == null) {
+            return;
+        }
+
+        // --- LÓGICA FINAL ---
+
+        // 1. Modificamos la experiencia base usando el valor ya cargado en el CustomItem.
+        int customExperience = customItem.getCustomExperience();
+        if (customExperience >= 0) {
+            event.setExperience(customExperience);
+        }
+
+        // 2. Ejecutamos los efectos adicionales del trigger 'on_exp_bottle_hit'
+        List<Effect> effects = customItem.getEffects("on_exp_bottle_hit");
+        if (effects.isEmpty()) {
+            return;
+        }
+
+        EffectContext context = new EffectContext(
+                thrower,
+                event.getHitEntity(),
+                event,
+                Collections.emptyMap(),
+                customItem.getKey(),
+                plugin
+        );
+
+        for (Effect effect : effects) {
+            effect.apply(context);
+        }
+    }
 }

@@ -226,12 +226,20 @@ public class CustomItemManager {
 
                 NamespacedKey idKey = new NamespacedKey(plugin, "item_id");
                 meta.getPersistentDataContainer().set(idKey, PersistentDataType.STRING, key);
+
                 itemStack.setItemMeta(meta);
+                // 1. Leemos las propiedades específicas
+                int customExperience = -1;
+                if (material == Material.EXPERIENCE_BOTTLE && config.isConfigurationSection("xp-bottle-meta")) {
+                    customExperience = config.getInt("xp-bottle-meta.experience", -1);
+                }
+
 
                 ItemStack finalItem = auraSkillsManager.applyStatsToItem(itemStack, auraSkillsStats);
 
-                CustomItem customItem = new CustomItem(key, finalItem, config, auraSkillsStats);
+                CustomItem customItem = new CustomItem(key, finalItem, config, auraSkillsStats, customExperience);
 
+                // 4. Cargamos los efectos del plugin
                 if (config.isConfigurationSection("effects")) {
                     ConfigurationSection effectsSection = config.getConfigurationSection("effects");
                     for (String trigger : effectsSection.getKeys(false)) {

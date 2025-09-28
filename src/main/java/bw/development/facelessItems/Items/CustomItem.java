@@ -15,12 +15,14 @@ public class CustomItem {
     private final FileConfiguration config;
     private final Map<String, List<Effect>> effectsByTrigger = new HashMap<>();
     private final List<Map<String, Object>> auraSkillsStats; // <-- NUEVO CAMPO
+    private final int customExperience; // <-- AÑADIR ESTE CAMPO
 
-    public CustomItem(String key, ItemStack itemStack, FileConfiguration config, List<Map<String, Object>> auraSkillsStats) {
+    public CustomItem(String key, ItemStack itemStack, FileConfiguration config, List<Map<String, Object>> auraSkillsStats, int customExperience) {
         this.key = key;
         this.itemStack = itemStack;
         this.config = config;
         this.auraSkillsStats = auraSkillsStats;
+        this.customExperience = customExperience;
     }
 
     public String getKey() {
@@ -45,5 +47,9 @@ public class CustomItem {
 
     public List<Map<String, Object>> getAuraSkillsStats() {
         return auraSkillsStats;
+    }
+
+    public int getCustomExperience() {
+        return customExperience;
     }
 }

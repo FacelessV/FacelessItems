@@ -357,6 +357,16 @@ public class EffectFactory {
             case "REPLANT" -> {
                 yield new ReplantEffect(conditions, cooldown, cooldownId);
             }
+            case "SPAWN_EXPERIENCE_ORB" -> {
+                int amount = getSafeInt(properties.get("amount"), 20);
+                int range = getSafeInt(properties.get("range"), 20);
+                yield new SpawnExperienceOrbEffect(amount, target, range, conditions, cooldown, cooldownId);
+            }
+
+            case "GIVE_EXPERIENCE" -> {
+                int amount = getSafeInt(properties.get("amount"), 10);
+                yield new GiveExperienceEffect(amount, target, conditions, cooldown, cooldownId);
+            }
 
             default -> null;
         };
