@@ -183,25 +183,41 @@ public class ItemEventListener implements Listener {
         List<Effect> effects = customItem.getEffects("on_mine");
         if (effects.isEmpty()) return;
 
-        // Buscamos los modificadores en la lista
-        SmeltEffect smeltModifier = effects.stream().filter(SmeltEffect.class::isInstance).map(SmeltEffect.class::cast).findFirst().orElse(null);
-        ReplantEffect replantModifier = effects.stream().filter(ReplantEffect.class::isInstance).map(ReplantEffect.class::cast).findFirst().orElse(null);
+        // --- LÓGICA REFACTORIZADA Y CORREGIDA ---
 
-        // Ejecutamos los efectos, inyectando los modificadores
+        // 1. Buscamos si hay modificadores en la lista de efectos.
+        SmeltEffect smeltModifier = effects.stream()
+                .filter(SmeltEffect.class::isInstance)
+                .map(SmeltEffect.class::cast)
+                .findFirst().orElse(null);
+        ReplantEffect replantModifier = effects.stream()
+                .filter(ReplantEffect.class::isInstance)
+                .map(ReplantEffect.class::cast)
+                .findFirst().orElse(null);
+
+        // 2. Creamos un único EffectContext para este evento.
+        EffectContext context = new EffectContext(
+                player,
+                null,
+                event,
+                Map.of("broken_block", event.getBlock()),
+                customItem.getKey(),
+                plugin
+        );
+
+        // 3. Iteramos y ejecutamos todos los efectos.
         for (Effect effect : effects) {
+            // Inyectamos los modificadores a los efectos de minería antes de ejecutarlos.
             if (effect instanceof BreakBlockEffect breakBlock) {
                 breakBlock.setSmeltModifier(smeltModifier);
-
                 breakBlock.setReplantModifier(replantModifier);
-                breakBlock.apply(new EffectContext(player, null, event, Map.of("broken_block", event.getBlock()), customItem.getKey(), plugin));
             } else if (effect instanceof VeinMineEffect veinMine) {
                 veinMine.setSmeltModifier(smeltModifier);
                 veinMine.setReplantModifier(replantModifier);
-                veinMine.apply(new EffectContext(player, null, event, Map.of("broken_block", event.getBlock()), customItem.getKey(), plugin));
-            } else if (!(effect instanceof SmeltEffect) && !(effect instanceof ReplantEffect)) {
-                // Ejecutamos otros efectos que no sean modificadores
-                effect.apply(new EffectContext(player, null, event, Map.of("broken_block", event.getBlock()), customItem.getKey(), plugin));
             }
+
+            // Aplicamos el efecto.
+            effect.apply(context);
         }
     }
 
