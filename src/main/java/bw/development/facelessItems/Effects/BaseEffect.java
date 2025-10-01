@@ -81,28 +81,5 @@ public abstract class BaseEffect implements Effect {
         return conditions;
     }
 
-    private void damageTool(Player player, ItemStack tool) {
-        // We don't damage tools in Creative mode
-        if (player.getGameMode() == GameMode.CREATIVE) {
-            return;
-        }
 
-        // Check if the item can be damaged
-        if (tool.getItemMeta() instanceof Damageable damageable) {
-            int unbreakingLevel = tool.getEnchantmentLevel(Enchantment.UNBREAKING);
-
-            // There's a (100 / (Level + 1))% chance for the tool to take damage
-            if (Math.random() * 100 < (100.0 / (unbreakingLevel + 1))) {
-                // Apply 1 point of damage
-                damageable.setDamage(damageable.getDamage() + 1);
-                tool.setItemMeta(damageable);
-
-                // Check if the tool broke
-                if (damageable.getDamage() >= tool.getType().getMaxDurability()) {
-                    player.getInventory().setItemInMainHand(null); // Remove the item
-                    player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
-                }
-            }
-        }
-    }
 }

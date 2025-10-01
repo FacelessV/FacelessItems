@@ -10,7 +10,6 @@ import org.bukkit.block.data.BlockData;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.ExperienceOrb;
 import org.bukkit.entity.Player;
-import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -182,41 +181,17 @@ public class BreakBlockEffect extends BaseEffect {
     }
 
     private void breakNormally(Block block, Player player, ItemStack tool, EffectContext context) {
-        if (triggerEvent) {
-            // If the option is enabled, we fire an event manually
-            FacelessItems plugin = context.getPlugin();
+        FacelessItems plugin = context.getPlugin();
 
-            // Activate the recursion guard
-            plugin.getItemEventListener().getAreaEffectUsers().add(player.getUniqueId());
-
-            BlockBreakEvent newEvent = new BlockBreakEvent(block, player);
-            Bukkit.getPluginManager().callEvent(newEvent);
-
-            // Deactivate the guard
-            plugin.getItemEventListener().getAreaEffectUsers().remove(player.getUniqueId());
-
-            if (!newEvent.isCancelled()) {
-                // If the event wasn't cancelled, we check for smelting
-                boolean wasSmelted = false;
-                if (smeltModifier != null) {
-                    EffectContext blockContext = new EffectContext(player, null, context.getBukkitEvent(), Map.of("broken_block", block), context.getItemKey(), plugin);
-                    boolean conditionsMet = smeltModifier.getConditions().stream().allMatch(c -> c.check(blockContext));
-                    if (conditionsMet) {
-                        smeltBlock(block, tool);
-                        wasSmelted = true;
-                    }
-                }
-                // If it wasn't smelted, break it normally (this is needed for drops)
-                if (!wasSmelted) {
-                    block.breakNaturally(tool);
-                    damageTool(player, tool);
-                }
-            }
+        if (this.triggerEvent) {
+            player.breakBlock(block);
+            damageTool(player, tool);
         } else {
-            // If the option is disabled, use the original logic
+            // --- MODO MODIFICADORES (sin trigger_event) ---
+            // En este modo, nosotros controlamos los drops (SMELT/REPLANT)
             boolean wasSmelted = false;
             if (smeltModifier != null) {
-                EffectContext blockContext = new EffectContext(player, null, context.getBukkitEvent(), Map.of("broken_block", block), context.getItemKey(), context.getPlugin());
+                EffectContext blockContext = new EffectContext(player, null, context.getBukkitEvent(), Map.of("broken_block", block), context.getItemKey(), plugin);
                 boolean conditionsMet = smeltModifier.getConditions().stream().allMatch(c -> c.check(blockContext));
                 if (conditionsMet) {
                     smeltBlock(block, tool);
@@ -229,6 +204,7 @@ public class BreakBlockEffect extends BaseEffect {
                     block.breakNaturally();
                 } else {
                     block.breakNaturally(tool);
+                    damageTool(player, tool);
                 }
             }
         }
@@ -287,5 +263,9 @@ public class BreakBlockEffect extends BaseEffect {
     @Override
     public String getType() {
         return "BREAK_BLOCK";
+    }
+
+    public boolean shouldTriggerEvents() {
+        return this.triggerEvent;
     }
 }

@@ -8,11 +8,14 @@ import bw.development.facelessItems.Items.CustomItemManager;
 import bw.development.facelessItems.Sets.ArmorSet;
 import bw.development.facelessItems.Sets.ArmorSetBonus;
 import bw.development.facelessItems.Sets.SetManager;
+import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockDropItemEvent;
 import org.bukkit.event.entity.*;
 import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -175,12 +178,14 @@ public class ItemEventListener implements Listener {
         }
     }
 
-    @EventHandler
+    // En ItemEventListener.java
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
-        if (areaEffectUsers.contains(event.getPlayer().getUniqueId())) {
+        Player player = event.getPlayer();
+        if (areaEffectUsers.contains(player.getUniqueId())) {
             return;
         }
-        Player player = event.getPlayer();
+
         ItemStack item = player.getInventory().getItemInMainHand();
         CustomItem customItem = customItemManager.getCustomItemByItemStack(item);
         if (customItem == null) return;
@@ -188,41 +193,54 @@ public class ItemEventListener implements Listener {
         List<Effect> effects = customItem.getEffects("on_mine");
         if (effects.isEmpty()) return;
 
-        // --- LÓGICA REFACTORIZADA Y CORREGIDA ---
-
-        // 1. Buscamos si hay modificadores en la lista de efectos.
-        SmeltEffect smeltModifier = effects.stream()
-                .filter(SmeltEffect.class::isInstance)
-                .map(SmeltEffect.class::cast)
-                .findFirst().orElse(null);
-        ReplantEffect replantModifier = effects.stream()
-                .filter(ReplantEffect.class::isInstance)
-                .map(ReplantEffect.class::cast)
+        BaseEffect mainMiningEffect = effects.stream()
+                .filter(e -> e instanceof BreakBlockEffect || e instanceof VeinMineEffect)
+                .map(BaseEffect.class::cast)
                 .findFirst().orElse(null);
 
-        // 2. Creamos un único EffectContext para este evento.
-        EffectContext context = new EffectContext(
-                player,
-                null,
-                event,
-                Map.of("broken_block", event.getBlock()),
-                customItem.getKey(),
-                plugin
-        );
+        // --- LÓGICA FINAL Y CORRECTA ---
+        boolean triggerEvents = false;
+        if (mainMiningEffect instanceof BreakBlockEffect be) {
+            triggerEvents = be.shouldTriggerEvents();
+        } else if (mainMiningEffect instanceof VeinMineEffect ve) {
+            triggerEvents = ve.shouldTriggerEvents();
+        }
 
-        // 3. Iteramos y ejecutamos todos los efectos.
+        if (mainMiningEffect != null && triggerEvents) {
+            areaEffectUsers.add(player.getUniqueId());
+            try {
+                runMineEffects(effects, player, event, customItem);
+            } finally {
+                areaEffectUsers.remove(player.getUniqueId());
+            }
+        } else {
+            runMineEffects(effects, player, event, customItem);
+        }
+    }
+
+
+    // Nuevo método de ayuda para no repetir el código de 'onBlockBreak'
+    private void runMineEffects(List<Effect> effects, Player player, BlockBreakEvent event, CustomItem customItem) {
+        SmeltEffect smeltModifier = effects.stream().filter(SmeltEffect.class::isInstance).map(SmeltEffect.class::cast).findFirst().orElse(null);
+        ReplantEffect replantModifier = effects.stream().filter(ReplantEffect.class::isInstance).map(ReplantEffect.class::cast).findFirst().orElse(null);
+        boolean hasAreaMiningEffect = effects.stream().anyMatch(e -> e instanceof BreakBlockEffect || e instanceof VeinMineEffect);
+
+        EffectContext context = new EffectContext(player, null, event, new HashMap<>(Map.of("broken_block", event.getBlock())), customItem.getKey(), plugin);
+
         for (Effect effect : effects) {
-            // Inyectamos los modificadores a los efectos de minería antes de ejecutarlos.
             if (effect instanceof BreakBlockEffect breakBlock) {
                 breakBlock.setSmeltModifier(smeltModifier);
                 breakBlock.setReplantModifier(replantModifier);
+                effect.apply(context);
             } else if (effect instanceof VeinMineEffect veinMine) {
                 veinMine.setSmeltModifier(smeltModifier);
                 veinMine.setReplantModifier(replantModifier);
+                effect.apply(context);
+            } else if ((effect instanceof SmeltEffect || effect instanceof ReplantEffect) && !hasAreaMiningEffect) {
+                effect.apply(context);
+            } else if (!(effect instanceof SmeltEffect) && !(effect instanceof ReplantEffect)) {
+                effect.apply(context);
             }
-
-            // Aplicamos el efecto.
-            effect.apply(context);
         }
     }
 
@@ -546,5 +564,49 @@ public class ItemEventListener implements Listener {
         }
     }
 
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onBlockDropItem(BlockDropItemEvent event) {
+        Player player = event.getPlayer();
+        ItemStack tool = player.getInventory().getItemInMainHand();
+        CustomItem customItem = customItemManager.getCustomItemByItemStack(tool);
+        if (customItem == null) return;
+
+        SmeltEffect smeltEffect = customItem.getEffects("on_mine").stream()
+                .filter(SmeltEffect.class::isInstance)
+                .map(SmeltEffect.class::cast)
+                .findFirst().orElse(null);
+
+        if (smeltEffect == null) return;
+
+        EffectContext context = new EffectContext(player, null, event, Map.of("broken_block", event.getBlock()), customItem.getKey(), plugin);
+        boolean conditionsMet = smeltEffect.getConditions().stream().allMatch(c -> c.check(context));
+
+        if (!conditionsMet) return;
+
+        // --- LÓGICA DE FUNDICIÓN CORREGIDA PARA COMPATIBILIDAD ---
+
+        // 1. Obtenemos la lista de entidades Item que van a dropear.
+        List<Item> itemsToDrop = event.getItems();
+
+        // 2. Iteramos sobre una copia para poder modificar la lista original.
+        for (Item itemEntity : new ArrayList<>(itemsToDrop)) {
+            ItemStack itemStack = itemEntity.getItemStack(); // Obtenemos el ItemStack de la entidad
+
+            Material smeltedType = smeltEffect.getSmeltedResult(itemStack.getType());
+            if (smeltedType != null) {
+                itemStack.setType(smeltedType); // "Traducimos" el ItemStack
+                itemEntity.setItemStack(itemStack); // Actualizamos la entidad Item
+            }
+        }
+
+        // 3. Manejamos la experiencia manualmente, ya que 'setExpToDrop' no existe.
+        if (smeltEffect.dropExperience) {
+            int exp = smeltEffect.getExperience(event.getBlockState().getType());
+            if (exp > 0) {
+                // Generamos un orbe de experiencia en la ubicación del bloque.
+                event.getBlock().getWorld().spawn(event.getBlock().getLocation().add(0.5, 0.5, 0.5), ExperienceOrb.class, orb -> orb.setExperience(exp));
+            }
+        }
+    }
 
 }

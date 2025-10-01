@@ -10,7 +10,6 @@ import org.bukkit.block.data.BlockData;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.ExperienceOrb;
 import org.bukkit.entity.Player;
-import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -167,25 +166,17 @@ public class VeinMineEffect extends BaseEffect {
         FacelessItems plugin = context.getPlugin();
 
         if (this.triggerEvent) {
-            // Si la opción está activada, disparamos un evento manualmente
+            // --- LÓGICA SIMPLIFICADA Y SEGURA ---
+            // Activamos el guardia de recursión
             plugin.getItemEventListener().getAreaEffectUsers().add(player.getUniqueId());
-            BlockBreakEvent newEvent = new BlockBreakEvent(block, player);
-            Bukkit.getPluginManager().callEvent(newEvent);
+
+            // Usamos el método nativo de Bukkit para que el jugador rompa el bloque.
+            // Esto dispara un evento de forma segura y es compatible con otros plugins.
+            player.breakBlock(block);
+
+            // Desactivamos el guardia
             plugin.getItemEventListener().getAreaEffectUsers().remove(player.getUniqueId());
 
-            if (!newEvent.isCancelled()) {
-                boolean wasSmelted = false;
-                if (smeltModifier != null) {
-                    EffectContext blockContext = new EffectContext(player, null, context.getBukkitEvent(), Map.of("broken_block", block), context.getItemKey(), plugin);
-                    if (smeltModifier.getConditions().stream().allMatch(c -> c.check(blockContext))) {
-                        smeltBlock(block, tool);
-                        wasSmelted = true;
-                    }
-                }
-                if (!wasSmelted) {
-                    block.breakNaturally(tool);
-                }
-            }
         } else {
             // Si la opción está desactivada, usamos la lógica de siempre sin disparar eventos
             boolean wasSmelted = false;
@@ -201,7 +192,7 @@ public class VeinMineEffect extends BaseEffect {
                     block.breakNaturally();
                 } else {
                     block.breakNaturally(tool);
-                    damageTool(player, tool);
+                    damageTool(player, tool); // No olvides el daño a la herramienta
                 }
             }
         }
@@ -251,4 +242,7 @@ public class VeinMineEffect extends BaseEffect {
         return "VEIN_MINE";
     }
 
+    public boolean shouldTriggerEvents() {
+        return this.triggerEvent;
+    }
 }
