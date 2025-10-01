@@ -25,6 +25,7 @@ public class FacelessItems extends JavaPlugin {
     private SetManager setManager;
     private ArmorSetChecker armorSetChecker;
     private ItemsGUI itemsGUI;
+    private ItemEventListener itemEventListener;
 
     @Override
     public void onEnable() {
@@ -51,7 +52,8 @@ public class FacelessItems extends JavaPlugin {
             this.armorSetChecker.runTaskTimer(this, 0L, 20L); // Starts immediately, runs every 20 ticks (1 second)
 
             getServer().getPluginManager().registerEvents(new GuiListener(itemsGUI), this);
-            getServer().getPluginManager().registerEvents(new ItemEventListener(this, customItemManager), this);
+            this.itemEventListener = new ItemEventListener(this, customItemManager);
+            getServer().getPluginManager().registerEvents(this.itemEventListener, this);
 
             if (getCommand("giveitem") == null) {
                 getLogger().severe("El comando 'giveitem' no está registrado en plugin.yml!");
@@ -109,5 +111,9 @@ public class FacelessItems extends JavaPlugin {
 
     public ItemsGUI getItemsGUI() {
         return itemsGUI;
+    }
+
+    public ItemEventListener getItemEventListener() {
+        return this.itemEventListener;
     }
 }

@@ -2,17 +2,17 @@ package bw.development.facelessItems.Effects;
 
 import bw.development.facelessItems.Effects.Conditions.Condition;
 import bw.development.facelessItems.FacelessItems;
-import org.bukkit.GameMode;
-import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.World;
+import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.Ageable;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.ExperienceOrb;
 import org.bukkit.entity.Player;
+import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
@@ -53,14 +53,16 @@ public class BreakBlockEffect extends BaseEffect {
 
     private SmeltEffect smeltModifier;
     private ReplantEffect replantModifier; // <-- AÑADIR NUEVO CAMPO
+    private final boolean triggerEvent;
 
-    public BreakBlockEffect(int radius, int layers, List<Material> mineableBlocks, int range, EffectTarget targetType, List<Condition> conditions, int cooldown, String cooldownId) {
+    public BreakBlockEffect(int radius, int layers, List<Material> mineableBlocks, int range, EffectTarget targetType, boolean triggerEvent, List<Condition> conditions, int cooldown, String cooldownId) {
         super(conditions, cooldown, cooldownId);
         this.radius = radius;
         this.layers = layers;
         this.mineableBlocks = mineableBlocks;
         this.range = range;
         this.targetType = targetType;
+        this.triggerEvent = triggerEvent;
         this.smeltModifier = null;
         this.replantModifier = null;
     }
@@ -180,21 +182,54 @@ public class BreakBlockEffect extends BaseEffect {
     }
 
     private void breakNormally(Block block, Player player, ItemStack tool, EffectContext context) {
-        boolean wasSmelted = false;
-        if (smeltModifier != null) {
-            EffectContext blockContext = new EffectContext(player, null, context.getBukkitEvent(), Map.of("broken_block", block), context.getItemKey(), context.getPlugin());
-            boolean conditionsMet = smeltModifier.getConditions().stream().allMatch(c -> c.check(blockContext));
-            if (conditionsMet) {
-                smeltBlock(block, tool);
-                wasSmelted = true;
-            }
-        }
+        if (triggerEvent) {
+            // If the option is enabled, we fire an event manually
+            FacelessItems plugin = context.getPlugin();
 
-        if (!wasSmelted) {
-            if (player.getGameMode() == GameMode.CREATIVE) {
-                block.breakNaturally();
-            } else {
-                block.breakNaturally(tool);
+            // Activate the recursion guard
+            plugin.getItemEventListener().getAreaEffectUsers().add(player.getUniqueId());
+
+            BlockBreakEvent newEvent = new BlockBreakEvent(block, player);
+            Bukkit.getPluginManager().callEvent(newEvent);
+
+            // Deactivate the guard
+            plugin.getItemEventListener().getAreaEffectUsers().remove(player.getUniqueId());
+
+            if (!newEvent.isCancelled()) {
+                // If the event wasn't cancelled, we check for smelting
+                boolean wasSmelted = false;
+                if (smeltModifier != null) {
+                    EffectContext blockContext = new EffectContext(player, null, context.getBukkitEvent(), Map.of("broken_block", block), context.getItemKey(), plugin);
+                    boolean conditionsMet = smeltModifier.getConditions().stream().allMatch(c -> c.check(blockContext));
+                    if (conditionsMet) {
+                        smeltBlock(block, tool);
+                        wasSmelted = true;
+                    }
+                }
+                // If it wasn't smelted, break it normally (this is needed for drops)
+                if (!wasSmelted) {
+                    block.breakNaturally(tool);
+                    damageTool(player, tool);
+                }
+            }
+        } else {
+            // If the option is disabled, use the original logic
+            boolean wasSmelted = false;
+            if (smeltModifier != null) {
+                EffectContext blockContext = new EffectContext(player, null, context.getBukkitEvent(), Map.of("broken_block", block), context.getItemKey(), context.getPlugin());
+                boolean conditionsMet = smeltModifier.getConditions().stream().allMatch(c -> c.check(blockContext));
+                if (conditionsMet) {
+                    smeltBlock(block, tool);
+                    wasSmelted = true;
+                }
+            }
+
+            if (!wasSmelted) {
+                if (player.getGameMode() == GameMode.CREATIVE) {
+                    block.breakNaturally();
+                } else {
+                    block.breakNaturally(tool);
+                }
             }
         }
     }
@@ -206,6 +241,7 @@ public class BreakBlockEffect extends BaseEffect {
             block.breakNaturally();
         } else {
             block.breakNaturally(tool);
+            damageTool(player, tool);
         }
 
         new BukkitRunnable() {
@@ -221,6 +257,31 @@ public class BreakBlockEffect extends BaseEffect {
                 }
             }
         }.runTaskLater(plugin, 1L);
+    }
+
+    private void damageTool(Player player, ItemStack tool) {
+        // We don't damage tools in Creative mode
+        if (player.getGameMode() == GameMode.CREATIVE) {
+            return;
+        }
+
+        // Check if the item can be damaged
+        if (tool.getItemMeta() instanceof Damageable damageable) {
+            int unbreakingLevel = tool.getEnchantmentLevel(Enchantment.UNBREAKING);
+
+            // There's a (100 / (Level + 1))% chance for the tool to take damage
+            if (Math.random() * 100 < (100.0 / (unbreakingLevel + 1))) {
+                // Apply 1 point of damage
+                damageable.setDamage(damageable.getDamage() + 1);
+                tool.setItemMeta(damageable);
+
+                // Check if the tool broke
+                if (damageable.getDamage() >= tool.getType().getMaxDurability()) {
+                    player.getInventory().setItemInMainHand(null); // Remove the item
+                    player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
+                }
+            }
+        }
     }
 
     @Override

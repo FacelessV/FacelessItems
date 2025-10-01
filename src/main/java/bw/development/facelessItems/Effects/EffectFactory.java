@@ -214,19 +214,18 @@ public class EffectFactory {
                 int layers = getSafeInt(properties.get("layers"), 1);
                 List<Material> mineableBlocks = getSafeMaterialList(properties.get("mineable_blocks"));
                 int range = getSafeInt(properties.get("range"), 10);
+                boolean triggerEvent = (boolean) properties.getOrDefault("trigger_event", false);
 
-                // We no longer read or pass 'replant' here.
-
-                // --- CORRECTED CONSTRUCTOR CALL ---
-                yield new BreakBlockEffect(radius, layers, mineableBlocks, range, target, conditions, cooldown, cooldownId);
+                // --- CONSTRUCTOR CORREGIDO ---
+                yield new BreakBlockEffect(radius, layers, mineableBlocks, range, target, triggerEvent, conditions, cooldown, cooldownId);
             }
             case "VEIN_MINE" -> {
                 int maxBlocks = getSafeInt(properties.get("max_blocks"), 64);
                 List<Material> mineableBlocks = getSafeMaterialList(properties.get("mineable_blocks"));
+                boolean triggerEvent = (boolean) properties.getOrDefault("trigger_event", false);
 
-                // --- ¡CORRECCIÓN! ---
-                // Llamamos al constructor simple, que ya no necesita 'smelt' ni 'experience'.
-                yield new VeinMineEffect(maxBlocks, mineableBlocks, conditions, cooldown, cooldownId);
+                // --- CONSTRUCTOR CORREGIDO ---
+                yield new VeinMineEffect(maxBlocks, mineableBlocks, triggerEvent, conditions, cooldown, cooldownId);
             }
             case "CHAIN_LIGHTNING" -> {
                 int chainCount = getSafeInt(properties.get("chain_count"), 3);

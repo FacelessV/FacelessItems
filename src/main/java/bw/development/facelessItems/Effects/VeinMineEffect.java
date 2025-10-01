@@ -2,17 +2,17 @@ package bw.development.facelessItems.Effects;
 
 import bw.development.facelessItems.Effects.Conditions.Condition;
 import bw.development.facelessItems.FacelessItems;
-import org.bukkit.GameMode;
-import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.World;
+import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.Ageable;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.ExperienceOrb;
 import org.bukkit.entity.Player;
+import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.*;
@@ -44,15 +44,17 @@ public class VeinMineEffect extends BaseEffect {
 
     private final int maxBlocks;
     private final List<Material> mineableBlocks;
+    private final boolean triggerEvent;
     private SmeltEffect smeltModifier;
     private ReplantEffect replantModifier; // <-- AÑADIDO
 
-    public VeinMineEffect(int maxBlocks, List<Material> mineableBlocks, List<Condition> conditions, int cooldown, String cooldownId) {
+    public VeinMineEffect(int maxBlocks, List<Material> mineableBlocks, boolean triggerEvent, List<Condition> conditions, int cooldown, String cooldownId) {
         super(conditions, cooldown, cooldownId);
         this.maxBlocks = maxBlocks;
         this.mineableBlocks = mineableBlocks;
+        this.triggerEvent = triggerEvent;
         this.smeltModifier = null;
-        this.replantModifier = null; // <-- AÑADIDO
+        this.replantModifier = null;
     }
 
     // Método para que el listener o el ChainEffect le den el modificador
@@ -143,6 +145,7 @@ public class VeinMineEffect extends BaseEffect {
             block.breakNaturally();
         } else {
             block.breakNaturally(tool);
+            damageTool(player, tool);
         }
 
         new BukkitRunnable() {
@@ -161,21 +164,45 @@ public class VeinMineEffect extends BaseEffect {
     }
 
     private void breakNormally(Block block, Player player, ItemStack tool, EffectContext context) {
-        boolean wasSmelted = false;
-        if (smeltModifier != null) {
-            EffectContext blockContext = new EffectContext(player, null, context.getBukkitEvent(), Map.of("broken_block", block), context.getItemKey(), context.getPlugin());
-            boolean conditionsMet = smeltModifier.getConditions().stream().allMatch(c -> c.check(blockContext));
-            if (conditionsMet) {
-                smeltBlock(block, tool);
-                wasSmelted = true;
-            }
-        }
+        FacelessItems plugin = context.getPlugin();
 
-        if (!wasSmelted) {
-            if (player.getGameMode() == GameMode.CREATIVE) {
-                block.breakNaturally();
-            } else {
-                block.breakNaturally(tool);
+        if (this.triggerEvent) {
+            // Si la opción está activada, disparamos un evento manualmente
+            plugin.getItemEventListener().getAreaEffectUsers().add(player.getUniqueId());
+            BlockBreakEvent newEvent = new BlockBreakEvent(block, player);
+            Bukkit.getPluginManager().callEvent(newEvent);
+            plugin.getItemEventListener().getAreaEffectUsers().remove(player.getUniqueId());
+
+            if (!newEvent.isCancelled()) {
+                boolean wasSmelted = false;
+                if (smeltModifier != null) {
+                    EffectContext blockContext = new EffectContext(player, null, context.getBukkitEvent(), Map.of("broken_block", block), context.getItemKey(), plugin);
+                    if (smeltModifier.getConditions().stream().allMatch(c -> c.check(blockContext))) {
+                        smeltBlock(block, tool);
+                        wasSmelted = true;
+                    }
+                }
+                if (!wasSmelted) {
+                    block.breakNaturally(tool);
+                }
+            }
+        } else {
+            // Si la opción está desactivada, usamos la lógica de siempre sin disparar eventos
+            boolean wasSmelted = false;
+            if (smeltModifier != null) {
+                EffectContext blockContext = new EffectContext(player, null, context.getBukkitEvent(), Map.of("broken_block", block), context.getItemKey(), plugin);
+                if (smeltModifier.getConditions().stream().allMatch(c -> c.check(blockContext))) {
+                    smeltBlock(block, tool);
+                    wasSmelted = true;
+                }
+            }
+            if (!wasSmelted) {
+                if (player.getGameMode() == GameMode.CREATIVE) {
+                    block.breakNaturally();
+                } else {
+                    block.breakNaturally(tool);
+                    damageTool(player, tool);
+                }
             }
         }
     }
@@ -194,8 +221,34 @@ public class VeinMineEffect extends BaseEffect {
         }
     }
 
+    private void damageTool(Player player, ItemStack tool) {
+        // We don't damage tools in Creative mode
+        if (player.getGameMode() == GameMode.CREATIVE) {
+            return;
+        }
+
+        // Check if the item can be damaged
+        if (tool.getItemMeta() instanceof Damageable damageable) {
+            int unbreakingLevel = tool.getEnchantmentLevel(Enchantment.UNBREAKING);
+
+            // There's a (100 / (Level + 1))% chance for the tool to take damage
+            if (Math.random() * 100 < (100.0 / (unbreakingLevel + 1))) {
+                // Apply 1 point of damage
+                damageable.setDamage(damageable.getDamage() + 1);
+                tool.setItemMeta(damageable);
+
+                // Check if the tool broke
+                if (damageable.getDamage() >= tool.getType().getMaxDurability()) {
+                    player.getInventory().setItemInMainHand(null); // Remove the item
+                    player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
+                }
+            }
+        }
+    }
+
     @Override
     public String getType() {
         return "VEIN_MINE";
     }
+
 }

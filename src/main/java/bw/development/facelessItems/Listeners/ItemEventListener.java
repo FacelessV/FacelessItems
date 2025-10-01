@@ -22,16 +22,14 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.projectiles.ProjectileSource;
 import org.bukkit.util.Vector;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class ItemEventListener implements Listener {
 
     private final FacelessItems plugin;
     private final CustomItemManager customItemManager;
     private boolean isApplyingCustomDamage = false;
+    private final Set<UUID> areaEffectUsers = new HashSet<>();
 
     // Creamos las claves una sola vez para ser más eficientes
     private final NamespacedKey bowKey;
@@ -42,6 +40,10 @@ public class ItemEventListener implements Listener {
         this.customItemManager = customItemManager;
         this.bowKey = new NamespacedKey(plugin, "custom_arrow_from_bow");
         this.arrowKey = new NamespacedKey(plugin, "custom_arrow_itself");
+    }
+
+    public Set<UUID> getAreaEffectUsers() {
+        return areaEffectUsers;
     }
 
     @EventHandler
@@ -175,6 +177,9 @@ public class ItemEventListener implements Listener {
 
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
+        if (areaEffectUsers.contains(event.getPlayer().getUniqueId())) {
+            return;
+        }
         Player player = event.getPlayer();
         ItemStack item = player.getInventory().getItemInMainHand();
         CustomItem customItem = customItemManager.getCustomItemByItemStack(item);
