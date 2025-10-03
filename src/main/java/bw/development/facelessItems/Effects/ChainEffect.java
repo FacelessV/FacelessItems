@@ -3,7 +3,6 @@ package bw.development.facelessItems.Effects;
 import bw.development.facelessItems.Effects.Conditions.Condition;
 import bw.development.facelessItems.FacelessItems;
 import org.bukkit.scheduler.BukkitRunnable;
-
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -18,6 +17,15 @@ public class ChainEffect extends BaseEffect {
         this.delayBetweenEffects = delayBetweenEffects;
     }
 
+    /**
+     * Obtiene la lista de efectos que componen esta cadena.
+     * Este método es necesario para que el ItemEventListener pueda buscar
+     * modificadores (como SmeltEffect) dentro de la cadena.
+     */
+    public List<BaseEffect> getChainedEffects() {
+        return chainedEffects;
+    }
+
     @Override
     protected void applyEffect(EffectContext context) {
         if (chainedEffects.isEmpty()) return;
@@ -25,24 +33,23 @@ public class ChainEffect extends BaseEffect {
         FacelessItems plugin = context.getPlugin();
         if (plugin == null) return;
 
-        // --- ¡NUEVA LÓGICA DE PRE-CONFIGURACIÓN! ---
-        // 1. Buscamos si existe un modificador Smelt en la cadena.
-        SmeltEffect smeltModifier = chainedEffects.stream()
-                .filter(SmeltEffect.class::isInstance)
-                .map(SmeltEffect.class::cast)
+        // --- PRE-CONFIGURATION FOR REPLANT ---
+        // Find the Replant modifier in the chain.
+        ReplantEffect replantModifier = chainedEffects.stream()
+                .filter(ReplantEffect.class::isInstance)
+                .map(ReplantEffect.class::cast)
                 .findFirst().orElse(null);
 
-        // 2. Si existe, se lo asignamos a todos los efectos de minería en la cadena.
-        if (smeltModifier != null) {
+        // If it exists, inject it into any mining effects in the chain.
+        if (replantModifier != null) {
             for (BaseEffect effect : chainedEffects) {
                 if (effect instanceof BreakBlockEffect breakBlockEffect) {
-                    breakBlockEffect.setSmeltModifier(smeltModifier);
+                    breakBlockEffect.setReplantModifier(replantModifier);
                 } else if (effect instanceof VeinMineEffect veinMineEffect) {
-                    veinMineEffect.setSmeltModifier(smeltModifier);
+                    veinMineEffect.setReplantModifier(replantModifier);
                 }
             }
         }
-        // --- FIN DE LA NUEVA LÓGICA ---
 
         AtomicInteger currentIndex = new AtomicInteger(0);
 
@@ -56,16 +63,12 @@ public class ChainEffect extends BaseEffect {
 
                 BaseEffect currentEffect = chainedEffects.get(currentIndex.get());
 
-                // No ejecutamos el SmeltEffect directamente, ya que solo es un modificador
-                if (!(currentEffect instanceof SmeltEffect)) {
+                // We don't execute modifier effects directly.
+                if (!(currentEffect instanceof SmeltEffect) && !(currentEffect instanceof ReplantEffect)) {
                     currentEffect.applyEffect(context);
                 }
 
                 currentIndex.incrementAndGet();
-
-                if (currentIndex.get() >= chainedEffects.size()) {
-                    this.cancel();
-                }
             }
         }.runTaskTimer(plugin, 0, delayBetweenEffects);
     }

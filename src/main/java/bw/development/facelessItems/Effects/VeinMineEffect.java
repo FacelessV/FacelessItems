@@ -25,21 +25,6 @@ public class VeinMineEffect extends BaseEffect {
             Material.WOODEN_HOE, Material.STONE_HOE, Material.IRON_HOE, Material.GOLDEN_HOE, Material.DIAMOND_HOE, Material.NETHERITE_HOE,
             Material.MACE
     );
-    private static final Map<Material, Material> SMELT_RESULTS = Map.of(
-            Material.IRON_ORE, Material.IRON_INGOT,
-            Material.GOLD_ORE, Material.GOLD_INGOT,
-            Material.COPPER_ORE, Material.COPPER_INGOT,
-            Material.DEEPSLATE_IRON_ORE, Material.IRON_INGOT,
-            Material.DEEPSLATE_GOLD_ORE, Material.GOLD_INGOT,
-            Material.DEEPSLATE_COPPER_ORE, Material.COPPER_INGOT,
-            Material.SAND, Material.GLASS,
-            Material.COBBLESTONE, Material.STONE
-    );
-    private static final Map<Material, Integer> SMELT_EXP = Map.of(
-            Material.IRON_ORE, 1,
-            Material.GOLD_ORE, 1,
-            Material.COPPER_ORE, 1
-    );
 
     private final int maxBlocks;
     private final List<Material> mineableBlocks;
@@ -65,6 +50,8 @@ public class VeinMineEffect extends BaseEffect {
     public void setReplantModifier(ReplantEffect replantModifier) {
         this.replantModifier = replantModifier;
     }
+
+// VeinMineEffect.java
 
     @Override
     protected void applyEffect(EffectContext context) {
@@ -92,50 +79,37 @@ public class VeinMineEffect extends BaseEffect {
         while (!blocksToProcess.isEmpty() && blocksBroken < maxBlocks) {
             Block currentBlock = blocksToProcess.poll();
 
-            // --- LÓGICA ACTUALIZADA ---
-            // Primero, comprobamos si hay que replantar
+            // --- LÓGICA DE REPLANTACIÓN ---
+            boolean wasReplanted = false;
             if (replantModifier != null) {
                 EffectContext blockContext = new EffectContext(player, null, context.getBukkitEvent(), Map.of("broken_block", currentBlock), context.getItemKey(), context.getPlugin());
                 boolean conditionsMet = replantModifier.getConditions().stream().allMatch(c -> c.check(blockContext));
 
                 if (conditionsMet && currentBlock.getBlockData() instanceof Ageable) {
+                    // breakAndReplant ya no aplica daño a la herramienta
                     breakAndReplant(currentBlock, player, tool, context.getPlugin());
-                    brokenBlocksInVein.add(currentBlock);
-                    blocksBroken++;
-                    // Buscamos el siguiente bloque en la vena
-                    findNextVeinBlocks(currentBlock, originalMaterial, blocksToProcess, processedBlocks);
-                    continue; // Saltamos al siguiente bloque del bucle
+                    wasReplanted = true;
                 }
             }
 
-            // Si no se replantó, aplicamos la lógica de romper/fundir
-            breakNormally(currentBlock, player, tool, context);
+            if (!wasReplanted) {
+                // Lógica de rotura (que ahora delega SMELT y el daño)
+                breakNormally(currentBlock, player, tool, context);
+            }
+
             brokenBlocksInVein.add(currentBlock);
             blocksBroken++;
             findNextVeinBlocks(currentBlock, originalMaterial, blocksToProcess, processedBlocks);
         }
+
+        // --- CORRECCIÓN DE DAÑO: DAÑO ÚNICO AL FINAL ---
+        if (blocksBroken > 0 && player.getGameMode() != GameMode.CREATIVE) {
+            damageTool(player, tool);
+        }
+
         context.getData().put("broken_blocks_list", brokenBlocksInVein);
     }
 
-    private void smeltBlock(Block block, ItemStack tool) {
-        World world = block.getWorld();
-        Location center = block.getLocation().add(0.5, 0.5, 0.5);
-        Collection<ItemStack> drops = block.getDrops(tool);
-
-        for (ItemStack drop : drops) {
-            drop.setType(SMELT_RESULTS.getOrDefault(drop.getType(), drop.getType()));
-            world.dropItemNaturally(center, drop);
-        }
-
-        // Ahora lee 'dropExperience' desde el modificador
-        if (smeltModifier != null && smeltModifier.dropExperience) {
-            int exp = SMELT_EXP.getOrDefault(block.getType(), 0);
-            if (exp > 0) {
-                world.spawn(center, ExperienceOrb.class, orb -> orb.setExperience(exp));
-            }
-        }
-        block.setType(Material.AIR);
-    }
 
     private void breakAndReplant(Block block, Player player, ItemStack tool, FacelessItems plugin) {
         Material cropType = block.getType();
@@ -144,7 +118,6 @@ public class VeinMineEffect extends BaseEffect {
             block.breakNaturally();
         } else {
             block.breakNaturally(tool);
-            damageTool(player, tool);
         }
 
         new BukkitRunnable() {
@@ -166,34 +139,23 @@ public class VeinMineEffect extends BaseEffect {
         FacelessItems plugin = context.getPlugin();
 
         if (this.triggerEvent) {
-            // --- LÓGICA SIMPLIFICADA Y SEGURA ---
-            // Activamos el guardia de recursión
+            // La fundición ocurre en ItemEventListener.onBlockDropItem
             plugin.getItemEventListener().getAreaEffectUsers().add(player.getUniqueId());
-
-            // Usamos el método nativo de Bukkit para que el jugador rompa el bloque.
-            // Esto dispara un evento de forma segura y es compatible con otros plugins.
-            player.breakBlock(block);
-
-            // Desactivamos el guardia
-            plugin.getItemEventListener().getAreaEffectUsers().remove(player.getUniqueId());
-
-        } else {
-            // Si la opción está desactivada, usamos la lógica de siempre sin disparar eventos
-            boolean wasSmelted = false;
-            if (smeltModifier != null) {
-                EffectContext blockContext = new EffectContext(player, null, context.getBukkitEvent(), Map.of("broken_block", block), context.getItemKey(), plugin);
-                if (smeltModifier.getConditions().stream().allMatch(c -> c.check(blockContext))) {
-                    smeltBlock(block, tool);
-                    wasSmelted = true;
-                }
+            try {
+                // Dispara BlockDropItemEvent, donde actúa la Lógica Externa de Smelt.
+                player.breakBlock(block);
+            } finally {
+                plugin.getItemEventListener().getAreaEffectUsers().remove(player.getUniqueId());
             }
-            if (!wasSmelted) {
-                if (player.getGameMode() == GameMode.CREATIVE) {
-                    block.breakNaturally();
-                } else {
-                    block.breakNaturally(tool);
-                    damageTool(player, tool); // No olvides el daño a la herramienta
-                }
+        } else {
+            // Rompe sin disparar eventos, y sin fundición, ni daño.
+            // El daño se aplicará una vez en applyEffect.
+            if (player.getGameMode() == GameMode.CREATIVE) {
+                block.breakNaturally();
+            } else {
+                // breakNaturally(tool) rompe el bloque sin eventos.
+                // NO SE LLAMA A damageTool AQUÍ.
+                block.breakNaturally(tool);
             }
         }
     }

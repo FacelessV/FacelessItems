@@ -1,14 +1,11 @@
 package bw.development.facelessItems.Effects;
 
 import bw.development.facelessItems.Effects.Conditions.Condition;
+import org.bukkit.Material;
 import java.util.List;
 import java.util.Map;
-import org.bukkit.Material; // <-- Necesitarás estos imports
-import org.bukkit.entity.ExperienceOrb;
-import org.bukkit.entity.Player;
 
 public class SmeltEffect extends BaseEffect {
-    // Los mapas de resultados y experiencia ahora viven aquí
     private static final Map<Material, Material> SMELT_RESULTS = Map.of(
             Material.RAW_IRON, Material.IRON_INGOT,
             Material.RAW_GOLD, Material.GOLD_INGOT,
@@ -32,20 +29,12 @@ public class SmeltEffect extends BaseEffect {
 
     @Override
     protected void applyEffect(EffectContext context) {
-        // Se deja vacío. La lógica principal ahora está en el ItemEventListener.
+        // Vacío a propósito. La lógica está en ItemEventListener.
     }
 
-    // --- NUEVOS MÉTODOS DE AYUDA ---
-    public Material getSmeltedResult(Material material) {
-        return SMELT_RESULTS.get(material);
-    }
-
-    public int getExperience(Material material) {
-        return SMELT_EXP.getOrDefault(material, 0);
-    }
+    public Material getSmeltedResult(Material material) { return SMELT_RESULTS.get(material); }
+    public int getExperience(Material material) { return SMELT_EXP.getOrDefault(material, 0); }
 
     @Override
-    public String getType() {
-        return "SMELT";
-    }
+    public String getType() { return "SMELT"; }
 }

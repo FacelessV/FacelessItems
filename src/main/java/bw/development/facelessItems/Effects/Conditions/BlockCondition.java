@@ -5,6 +5,7 @@ import org.bukkit.Material;
 import org.bukkit.block.Block;
 
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class BlockCondition implements Condition {
 
@@ -18,19 +19,22 @@ public class BlockCondition implements Condition {
 
     @Override
     public boolean check(EffectContext context) {
-        // Obtenemos el bloque del contexto, que se añade en el evento on_mine
         Object blockObj = context.getData().get("broken_block");
 
-        // Si no hay un bloque en el contexto, esta condición no aplica.
         if (!(blockObj instanceof Block block)) {
             return true;
         }
 
-        Material blockType = block.getType();
-        boolean matchFound = materials.contains(blockType);
+        return this.matches(block.getType());
+    }
 
-        // Si es lista negra, retorna true si NO hay coincidencia.
-        // Si es lista blanca, retorna true si SÍ hay coincidencia.
+    /**
+     * Método de ayuda para comprobar un tipo de material directamente.
+     */
+    public boolean matches(Material material) {
+        // --- CORRECCIÓN AQUÍ ---
+        // Usamos 'materials' para que coincida con el nombre del campo de la clase.
+        boolean matchFound = materials.contains(material);
         return isBlacklist != matchFound;
     }
 }

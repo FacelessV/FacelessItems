@@ -1,6 +1,7 @@
 package bw.development.facelessItems.Listeners;
 
 import bw.development.facelessItems.Effects.*;
+import bw.development.facelessItems.Effects.Conditions.BlockCondition;
 import bw.development.facelessItems.Effects.Conditions.Condition;
 import bw.development.facelessItems.FacelessItems;
 import bw.development.facelessItems.Items.CustomItem;
@@ -10,6 +11,9 @@ import bw.development.facelessItems.Sets.ArmorSetBonus;
 import bw.development.facelessItems.Sets.SetManager;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -23,6 +27,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.projectiles.ProjectileSource;
+import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
 import java.util.*;
@@ -178,14 +183,11 @@ public class ItemEventListener implements Listener {
         }
     }
 
-    // En ItemEventListener.java
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
-        Player player = event.getPlayer();
-        if (areaEffectUsers.contains(player.getUniqueId())) {
-            return;
-        }
+        if (areaEffectUsers.contains(event.getPlayer().getUniqueId())) return;
 
+        Player player = event.getPlayer();
         ItemStack item = player.getInventory().getItemInMainHand();
         CustomItem customItem = customItemManager.getCustomItemByItemStack(item);
         if (customItem == null) return;
@@ -193,12 +195,32 @@ public class ItemEventListener implements Listener {
         List<Effect> effects = customItem.getEffects("on_mine");
         if (effects.isEmpty()) return;
 
+        // Buscamos el efecto de minería principal
         BaseEffect mainMiningEffect = effects.stream()
                 .filter(e -> e instanceof BreakBlockEffect || e instanceof VeinMineEffect)
                 .map(BaseEffect.class::cast)
                 .findFirst().orElse(null);
 
-        // --- LÓGICA FINAL Y CORRECTA ---
+        SmeltEffect smeltModifier = effects.stream().filter(SmeltEffect.class::isInstance).map(SmeltEffect.class::cast).findFirst().orElse(null);
+        ReplantEffect replantModifier = effects.stream().filter(ReplantEffect.class::isInstance).map(ReplantEffect.class::cast).findFirst().orElse(null);
+
+        // --- LÓGICA DE REPLANTACIÓN STANDALONE ---
+        // Si solo hay un modificador REPLANT y no hay efecto de área, lo ejecutamos.
+        if (replantModifier != null && mainMiningEffect == null) {
+            EffectContext context = new EffectContext(player, null, event, Map.of("broken_block", event.getBlock()), customItem.getKey(), plugin);
+
+            // Verificamos si es un cultivo y si cumple las condiciones del modificador
+            if (replantModifier.getConditions().stream().allMatch(c -> c.check(context)) && event.getBlock().getBlockData() instanceof Ageable) {
+                // Ejecutamos la lógica de replantación
+                breakAndReplantStandalone(event.getBlock(), plugin);
+            }
+        }
+
+        // Si no hay efecto de minería principal, salimos. Los modificadores ya fueron manejados:
+        // REPLANT (si aplica) se ejecutó, y SMELT actuará en onBlockDropItem.
+        if (mainMiningEffect == null) return;
+
+        // Comprobamos si el efecto principal quiere disparar eventos (necesario para Smelt y otros plugins)
         boolean triggerEvents = false;
         if (mainMiningEffect instanceof BreakBlockEffect be) {
             triggerEvents = be.shouldTriggerEvents();
@@ -206,39 +228,42 @@ public class ItemEventListener implements Listener {
             triggerEvents = ve.shouldTriggerEvents();
         }
 
-        if (mainMiningEffect != null && triggerEvents) {
+        // --- LÓGICA DE EJECUCIÓN DEL EFECTO DE ÁREA ---
+        if (triggerEvents) {
+            // MODO ESTADÍSTICAS: Activamos el guardia de recursión antes de la rotura.
             areaEffectUsers.add(player.getUniqueId());
             try {
-                runMineEffects(effects, player, event, customItem);
+                // Ejecutamos los efectos de minería (inyecta modificadores y aplica el efecto principal).
+                runMineEffects(effects, player, event, customItem, smeltModifier, replantModifier);
             } finally {
+                // Desactivamos el guardia SIEMPRE.
                 areaEffectUsers.remove(player.getUniqueId());
             }
         } else {
-            runMineEffects(effects, player, event, customItem);
+            // MODO MODIFICADORES: Ejecución directa sin guardia ni player.breakBlock().
+            runMineEffects(effects, player, event, customItem, smeltModifier, replantModifier);
         }
     }
 
 
     // Nuevo método de ayuda para no repetir el código de 'onBlockBreak'
-    private void runMineEffects(List<Effect> effects, Player player, BlockBreakEvent event, CustomItem customItem) {
-        SmeltEffect smeltModifier = effects.stream().filter(SmeltEffect.class::isInstance).map(SmeltEffect.class::cast).findFirst().orElse(null);
-        ReplantEffect replantModifier = effects.stream().filter(ReplantEffect.class::isInstance).map(ReplantEffect.class::cast).findFirst().orElse(null);
-        boolean hasAreaMiningEffect = effects.stream().anyMatch(e -> e instanceof BreakBlockEffect || e instanceof VeinMineEffect);
+    private void runMineEffects(List<Effect> effects, Player player, BlockBreakEvent event, CustomItem customItem, SmeltEffect smeltModifier, ReplantEffect replantModifier) {
 
+        // Contexto para todos los efectos
         EffectContext context = new EffectContext(player, null, event, new HashMap<>(Map.of("broken_block", event.getBlock())), customItem.getKey(), plugin);
 
         for (Effect effect : effects) {
             if (effect instanceof BreakBlockEffect breakBlock) {
-                breakBlock.setSmeltModifier(smeltModifier);
+                // Inyectar solo Replant, ya que Smelt actúa en el listener.
                 breakBlock.setReplantModifier(replantModifier);
                 effect.apply(context);
             } else if (effect instanceof VeinMineEffect veinMine) {
+                // Inyectar Smelt (aunque el VeinMine ya no lo usa internamente) y Replant.
                 veinMine.setSmeltModifier(smeltModifier);
                 veinMine.setReplantModifier(replantModifier);
                 effect.apply(context);
-            } else if ((effect instanceof SmeltEffect || effect instanceof ReplantEffect) && !hasAreaMiningEffect) {
-                effect.apply(context);
             } else if (!(effect instanceof SmeltEffect) && !(effect instanceof ReplantEffect)) {
+                // Ejecutar todos los demás efectos que no son modificadores.
                 effect.apply(context);
             }
         }
@@ -571,42 +596,145 @@ public class ItemEventListener implements Listener {
         CustomItem customItem = customItemManager.getCustomItemByItemStack(tool);
         if (customItem == null) return;
 
-        SmeltEffect smeltEffect = customItem.getEffects("on_mine").stream()
+        // --- 1. BÚSQUEDA DE SMELT (CON GARANTÍA 'FINAL') ---
+
+        // Declaramos la variable principal como 'final' para que pueda ser usada en la lambda.
+        final SmeltEffect smeltEffect;
+
+        // Usamos una variable temporal para realizar la búsqueda.
+        SmeltEffect tempSmeltEffect = null;
+
+        // A. Buscar en el trigger Pasivo (on_mine)
+        tempSmeltEffect = customItem.getEffects("on_mine").stream()
                 .filter(SmeltEffect.class::isInstance)
                 .map(SmeltEffect.class::cast)
                 .findFirst().orElse(null);
 
-        if (smeltEffect == null) return;
+        // B. Si no se encuentra, buscar en el trigger Activo (on_use, dentro del Chain)
+        if (tempSmeltEffect == null) {
+            List<Effect> onUseEffects = customItem.getEffects("on_use");
 
-        EffectContext context = new EffectContext(player, null, event, Map.of("broken_block", event.getBlock()), customItem.getKey(), plugin);
-        boolean conditionsMet = smeltEffect.getConditions().stream().allMatch(c -> c.check(context));
+            // Asumimos que el primer efecto en on_use es el CHAIN
+            if (!onUseEffects.isEmpty() && onUseEffects.get(0) instanceof ChainEffect chainEffect) {
 
-        if (!conditionsMet) return;
-
-        // --- LÓGICA DE FUNDICIÓN CORREGIDA PARA COMPATIBILIDAD ---
-
-        // 1. Obtenemos la lista de entidades Item que van a dropear.
-        List<Item> itemsToDrop = event.getItems();
-
-        // 2. Iteramos sobre una copia para poder modificar la lista original.
-        for (Item itemEntity : new ArrayList<>(itemsToDrop)) {
-            ItemStack itemStack = itemEntity.getItemStack(); // Obtenemos el ItemStack de la entidad
-
-            Material smeltedType = smeltEffect.getSmeltedResult(itemStack.getType());
-            if (smeltedType != null) {
-                itemStack.setType(smeltedType); // "Traducimos" el ItemStack
-                itemEntity.setItemStack(itemStack); // Actualizamos la entidad Item
+                // Buscamos el SmeltEffect DENTRO de los efectos encadenados
+                // (Asume que getChainedEffects() ya se añadió a ChainEffect.java)
+                tempSmeltEffect = chainEffect.getChainedEffects().stream()
+                        .filter(SmeltEffect.class::isInstance)
+                        .map(SmeltEffect.class::cast)
+                        .findFirst().orElse(null);
             }
         }
 
-        // 3. Manejamos la experiencia manualmente, ya que 'setExpToDrop' no existe.
+        // Asignamos el resultado final a la variable 'final'
+        smeltEffect = tempSmeltEffect;
+
+        // Si no se encontró en ninguno de los dos lugares, no fundimos nada.
+        if (smeltEffect == null) return;
+
+        // --- 2. VERIFICACIÓN DE CONDICIONES ---
+        boolean conditionsMet = true;
+        EffectContext context = new EffectContext(player, null, event, new HashMap<>(Map.of("broken_block", event.getBlock())), customItem.getKey(), plugin);
+
+        for (Condition condition : smeltEffect.getConditions()) {
+            if (condition instanceof BlockCondition blockCond) {
+                if (!blockCond.matches(event.getBlockState().getType())) {
+                    conditionsMet = false;
+                    break;
+                }
+            } else {
+                if (!condition.check(context)) {
+                    conditionsMet = false;
+                    break;
+                }
+            }
+        }
+
+        if (!conditionsMet) return;
+
+        // --- 3. APLICACIÓN DE EXPERIENCIA ---
         if (smeltEffect.dropExperience) {
             int exp = smeltEffect.getExperience(event.getBlockState().getType());
             if (exp > 0) {
-                // Generamos un orbe de experiencia en la ubicación del bloque.
                 event.getBlock().getWorld().spawn(event.getBlock().getLocation().add(0.5, 0.5, 0.5), ExperienceOrb.class, orb -> orb.setExperience(exp));
+            }
+        }
+
+        // --- 4. SUSTITUCIÓN DE ÍTEMS (Lógica que faltaba) ---
+        List<org.bukkit.entity.Item> drops = event.getItems();
+
+        drops.removeIf(itemEntity -> {
+            ItemStack itemStack = itemEntity.getItemStack();
+
+            // La variable 'smeltEffect' es final, por lo que su uso aquí es seguro.
+            Material smeltedMaterial = smeltEffect.getSmeltedResult(itemStack.getType());
+
+            if (smeltedMaterial != null) {
+                // Creamos el nuevo ItemStack fundido
+                ItemStack smeltedStack = new ItemStack(smeltedMaterial, itemStack.getAmount());
+
+                // Lo dropeamos al mundo
+                event.getBlock().getWorld().dropItemNaturally(itemEntity.getLocation(), smeltedStack);
+
+                // Retorna TRUE para ELIMINAR el ítem original (el mineral)
+                return true;
+            }
+
+            return false; // Mantiene el ítem sin fundir
+        });
+    }
+    /**
+     * Runs modifier effects like SMELT or REPLANT when they are standalone.
+     */
+    private void runStandaloneModifiers(List<Effect> effects, Player player, BlockBreakEvent event, CustomItem customItem) {
+        EffectContext context = new EffectContext(
+                player,
+                null,
+                event,
+                new HashMap<>(Map.of("broken_block", event.getBlock())),
+                customItem.getKey(),
+                plugin
+        );
+
+        for (Effect effect : effects) {
+            if (effect instanceof SmeltEffect || effect instanceof ReplantEffect) {
+                effect.apply(context);
             }
         }
     }
 
+    /**
+     * Lógica para replantar cultivos sin depender de un efecto de área.
+     */
+    /**
+     * Lógica para replantar cultivos sin depender de un efecto de área.
+     */
+    private void breakAndReplantStandalone(Block block, FacelessItems plugin) {
+        Material cropType = block.getType();
+
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                // Revisa si la base sigue siendo tierra de cultivo
+                if (block.getRelative(BlockFace.DOWN).getType() == Material.FARMLAND) {
+
+                    // 1. Establece el tipo de bloque base (ej: WHEAT)
+                    block.setType(cropType);
+
+                    // 2. Obtiene los BlockData actuales del bloque (tipo org.bukkit.block.data.BlockData)
+                    BlockData newData = block.getBlockData();
+
+                    // 3. Verifica si ESTOS DATOS DE BLOQUE implementan la interfaz Ageable (de bloque)
+                    if (newData instanceof org.bukkit.block.data.Ageable newAgeable) {
+
+                        // 4. Establece la edad a 0 (replantar)
+                        newAgeable.setAge(0);
+
+                        // 5. Aplica los datos de bloque modificados (newAgeable es de tipo BlockData)
+                        block.setBlockData(newAgeable);
+                    }
+                }
+            }
+        }.runTaskLater(plugin, 1L);
+    }
 }
