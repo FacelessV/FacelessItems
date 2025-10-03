@@ -17,15 +17,18 @@ public class BlockCondition implements Condition {
         this.isBlacklist = isBlacklist;
     }
 
+    // Código Mejorado (Más conciso, funciona en Java 16+)
     @Override
     public boolean check(EffectContext context) {
         Object blockObj = context.getData().get("broken_block");
 
-        if (!(blockObj instanceof Block block)) {
-            return true;
+        // Si blockObj es una instancia de Block, la variable 'block' se inicializa.
+        if (blockObj instanceof Block block) {
+            return this.matches(block.getType());
         }
 
-        return this.matches(block.getType());
+        // Si no es un bloque o si blockObj es null, permitimos el paso de la condición.
+        return true;
     }
 
     /**

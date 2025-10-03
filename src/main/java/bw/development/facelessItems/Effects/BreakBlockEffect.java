@@ -63,26 +63,53 @@ public class BreakBlockEffect extends BaseEffect {
         ItemStack tool = player.getInventory().getItemInMainHand();
         FacelessItems plugin = context.getPlugin();
 
+        // Contador de bloques rotos para el daño único
+        int blocksBrokenCount = 0;
+
         for (Block currentBlock : blocksToProcess) {
             boolean wasReplanted = false;
+
+            // --- Lógica de Replantación ---
             if (replantModifier != null) {
-                    EffectContext blockContext = new EffectContext(player, null, context.getBukkitEvent(), Map.of("broken_block", currentBlock), context.getItemKey(), plugin);
-                    if (replantModifier.getConditions().stream().allMatch(c -> c.check(blockContext)) && currentBlock.getBlockData() instanceof Ageable) {
-                        breakAndReplant(currentBlock, player, tool, plugin);
-                        wasReplanted = true;
-                    }
+                EffectContext blockContext = new EffectContext(player, null, context.getBukkitEvent(), Map.of("broken_block", currentBlock), context.getItemKey(), plugin);
+                if (replantModifier.getConditions().stream().allMatch(c -> c.check(blockContext)) && currentBlock.getBlockData() instanceof Ageable) {
+                    // Modificado: breakAndReplant ya no llama a damageTool
+                    breakAndReplant(currentBlock, player, tool, plugin);
+                    wasReplanted = true;
                 }
+            }
+
             if (!wasReplanted) {
                 if (triggerEvent) {
                     plugin.getItemEventListener().getAreaEffectUsers().add(player.getUniqueId());
                     boolean broken = player.breakBlock(currentBlock);
                     plugin.getItemEventListener().getAreaEffectUsers().remove(player.getUniqueId());
-                    if (broken) damageTool(player, tool);
+
+                    // ELIMINADO: if (broken) damageTool(player, tool); <--- Se daña una sola vez al final
+                    if (broken) blocksBrokenCount++;
                 } else {
-                    if (player.getGameMode() != GameMode.CREATIVE) damageTool(player, tool);
+                    // ELIMINADO: if (player.getGameMode() != GameMode.CREATIVE) damageTool(player, tool); <--- Se daña una sola vez al final
                     currentBlock.breakNaturally(tool);
+                    blocksBrokenCount++;
                 }
+            } else {
+                blocksBrokenCount++;
             }
+        }
+
+        // --- NUEVA LÓGICA DE DAÑO: DAÑO ÚNICO Y APLAZADO ---
+        if (blocksBrokenCount > 0 && player.getGameMode() != GameMode.CREATIVE) {
+            // Aplazamos el daño 1 tick para asegurar que todos los BlockDropItemEvent (Smelt) se hayan procesado.
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    // Re-obtenemos la herramienta para el caso de que haya cambiado de slot.
+                    ItemStack finalTool = player.getInventory().getItemInMainHand();
+                    if (finalTool != null && finalTool.equals(tool)) {
+                        damageTool(player, finalTool);
+                    }
+                }
+            }.runTaskLater(plugin, 1L);
         }
     }
 
@@ -141,14 +168,16 @@ public class BreakBlockEffect extends BaseEffect {
         return blocksFound;
     }
 
+// BreakBlockEffect.java
+
     private void breakAndReplant(Block block, Player player, ItemStack tool, FacelessItems plugin) {
         Material cropType = block.getType();
 
         if (player.getGameMode() == GameMode.CREATIVE) {
             block.breakNaturally();
         } else {
+            // ELIMINADO: damageTool(player, tool);
             block.breakNaturally(tool);
-            damageTool(player, tool);
         }
 
         new BukkitRunnable() {

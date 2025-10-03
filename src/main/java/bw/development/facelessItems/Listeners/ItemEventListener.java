@@ -589,7 +589,7 @@ public class ItemEventListener implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockDropItem(BlockDropItemEvent event) {
         Player player = event.getPlayer();
         ItemStack tool = player.getInventory().getItemInMainHand();
