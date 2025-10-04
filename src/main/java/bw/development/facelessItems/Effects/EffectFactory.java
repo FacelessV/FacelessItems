@@ -370,17 +370,22 @@ public class EffectFactory {
                 yield new GiveExperienceEffect(amount, target, conditions, cooldown, cooldownId);
             }
 
-            case "DAMAGE_MULTIPLIER" -> {
-                double multiplier = getSafeDouble(properties.get("multiplier"), 1.0);
-                String applyToStr = (String) properties.getOrDefault("apply_to", "BOTH");
-                try {
-                    DamageMultiplierEffect.ApplyType applyType = DamageMultiplierEffect.ApplyType.valueOf(applyToStr.toUpperCase(Locale.ROOT));
-                    yield new DamageMultiplierEffect(multiplier, applyType, conditions, cooldown, cooldownId);
-                } catch (IllegalArgumentException e) {
-                    yield null;
-                }
+            // --- NUEVO CASO: TAUNT (PROVOCACIÓN) ---
+            case "TAUNT" -> {
+                // Radio de búsqueda de entidades hostiles, por defecto 10 bloques.
+                double radius = getSafeDouble(properties.get("radius"), 10.0);
+
+                // Booleano para ignorar la línea de visión (LoS), por defecto FALSE.
+                boolean ignoreLOS = (boolean) properties.getOrDefault("ignore_los", false);
+
+                yield new TauntEffect(radius, ignoreLOS, target, conditions, cooldown, cooldownId);
             }
 
+            case "DAMAGE_MULTIPLIER" -> {
+                double multiplier = getSafeDouble(properties.get("multiplier"), 1.0);
+                // Ya no buscamos 'apply_to' ni el enum
+                yield new DamageMultiplierEffect(multiplier, conditions, cooldown, cooldownId);
+            }
             default -> null;
         };
     }

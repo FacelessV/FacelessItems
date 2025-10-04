@@ -55,6 +55,8 @@ public class ItemEventListener implements Listener {
         return areaEffectUsers;
     }
 
+// ItemEventListener.java
+
     @EventHandler
     public void onPlayerDamage(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Player player)) {
@@ -66,25 +68,73 @@ public class ItemEventListener implements Listener {
             attacker = damageByEntityEvent.getDamager();
         }
 
-        // --- LÓGICA EXISTENTE PARA EFECTOS DE ÍTEMS INDIVIDUALES ---
+        double finalDamage = event.getDamage(); // Inicializamos el daño a modificar
+
+        // --- FASE 1: APLICACIÓN DE MODIFICADORES (DEFENSA) ---
+        // Recorremos el equipo para aplicar modificadores de daño pasivos.
         for (ItemStack armorPiece : player.getInventory().getArmorContents()) {
             CustomItem customItem = customItemManager.getCustomItemByItemStack(armorPiece);
             if (customItem != null) {
                 List<Effect> effects = customItem.getEffects("on_damage_taken");
                 if (!effects.isEmpty()) {
-                    EffectContext context = new EffectContext(player, attacker, event, Map.of("damage_amount", event.getDamage()), customItem.getKey(), plugin);
+
                     for (Effect effect : effects) {
-                        effect.apply(context);
+                        // --- APLICAR MULTIPLICADOR DE DAÑO ---
+                        if (effect instanceof DamageMultiplierEffect dmgMultiplier) {
+                            // Creamos un contexto limpio para chequear condiciones
+                            EffectContext modContext = new EffectContext(player, attacker, event, Collections.emptyMap(), customItem.getKey(), plugin);
+
+                            if (dmgMultiplier.getConditions().stream().allMatch(c -> c.check(modContext))) {
+                                // Aplicamos el multiplicador al daño (Ej: 0.5 para reducir el daño a la mitad)
+                                finalDamage *= dmgMultiplier.getMultiplier();
+                            }
+                        }
                     }
                 }
             }
         }
 
-        // --- ¡NUEVA LÓGICA PARA LOS BONUS DE SET! ---
+        // --- APLICACIÓN DE MODIFICADORES DE SET BONUS (Si existen) ---
+        // La lógica de Bonus de Set debe repetirse aquí si el bonus tiene un DamageMultiplierEffect
+        // para que aplique antes del setDamage(). (Asumimos que el setBonus no tiene multiplicadores por ahora para simplificar).
+
+        // --- FINAL DE LA FASE 1 ---
+        // Aplicamos el daño final modificado a Bukkit antes de ejecutar las acciones.
+        event.setDamage(finalDamage);
+
+
+        // --- FASE 2: APLICACIÓN DE ACCIÓN (EXPLOSION, POTION, etc.) ---
+        // Ahora ejecutamos los efectos de acción que usan el daño modificado.
+
+        // 2.1 ÍTEMS INDIVIDUALES
+        for (ItemStack armorPiece : player.getInventory().getArmorContents()) {
+            CustomItem customItem = customItemManager.getCustomItemByItemStack(armorPiece);
+            if (customItem != null) {
+                List<Effect> effects = customItem.getEffects("on_damage_taken");
+
+                for (Effect effect : effects) {
+                    // Solo ejecutamos efectos que NO sean modificadores
+                    if (!(effect instanceof DamageMultiplierEffect)) {
+                        // Pasamos el daño FINAL modificado al contexto
+                        EffectContext actionContext = new EffectContext(
+                                player,
+                                attacker,
+                                event,
+                                Map.of("damage_amount", finalDamage), // Usamos el daño final calculado
+                                customItem.getKey(),
+                                plugin
+                        );
+                        effect.apply(actionContext);
+                    }
+                }
+            }
+        }
+
+        // 2.2 BONUS DE SET
         SetManager setManager = plugin.getSetManager();
         if (setManager == null) return;
 
-        // 1. Contamos cuántas piezas de cada set lleva el jugador
+        // Contamos las piezas de nuevo (mantenemos tu lógica de conteo)
         Map<ArmorSet, Integer> setPiecesCount = new HashMap<>();
         for (ItemStack armorPiece : player.getInventory().getArmorContents()) {
             CustomItem customItem = customItemManager.getCustomItemByItemStack(armorPiece);
@@ -97,23 +147,21 @@ public class ItemEventListener implements Listener {
             }
         }
 
-        // 2. Iteramos sobre los sets que el jugador tiene equipados
+        // Ejecución de acciones del Set Bonus
         for (Map.Entry<ArmorSet, Integer> entry : setPiecesCount.entrySet()) {
             ArmorSet currentSet = entry.getKey();
             int pieceCount = entry.getValue();
 
-            // 3. Obtenemos el bonus correspondiente al número de piezas
             ArmorSetBonus bonus = currentSet.getBonus(pieceCount);
             if (bonus != null) {
-                // 4. Buscamos si este bonus tiene efectos para el trigger 'on_damage_taken'
                 List<BaseEffect> triggeredEffects = bonus.getTriggeredEffects().get("on_damage_taken");
                 if (triggeredEffects != null && !triggeredEffects.isEmpty()) {
 
-                    // Creamos un contexto para los efectos del set
-                    EffectContext setContext = new EffectContext(player, attacker, event, Map.of("damage_amount", event.getDamage()), currentSet.getKey(), plugin);
+                    // Pasamos el daño FINAL modificado al contexto del set
+                    EffectContext setContext = new EffectContext(player, attacker, event, Map.of("damage_amount", finalDamage), currentSet.getKey(), plugin);
 
-                    // 5. Aplicamos los efectos del set
                     for (Effect effect : triggeredEffects) {
+                        // Aquí asumimos que los efectos del set son solo ACCIÓN (no modificadores)
                         effect.apply(setContext);
                     }
                 }
@@ -134,21 +182,47 @@ public class ItemEventListener implements Listener {
         List<Effect> effects = customItem.getEffects("on_hit");
         if (effects.isEmpty()) return;
 
+        Entity target = event.getEntity();
+        double finalDamage = event.getDamage(); // Daño base de Bukkit
+
         try {
             isApplyingCustomDamage = true;
-            Entity target = event.getEntity();
-            // Aquí, 'user' es el atacante y 'targetEntity' es el que recibe el daño
-            EffectContext context = new EffectContext(
+
+            // 1. APLICACIÓN DE MODIFICADORES PASIVOS (DamageMultiplier)
+            for (Effect effect : effects) {
+
+                // --- APLICAR MULTIPLICADOR DE DAÑO ---
+                if (effect instanceof DamageMultiplierEffect dmgMultiplier) {
+                    EffectContext modContext = new EffectContext(player, target, event, Collections.emptyMap(), customItem.getKey(), plugin);
+                    if (dmgMultiplier.getConditions().stream().allMatch(c -> c.check(modContext))) {
+                        finalDamage *= dmgMultiplier.getMultiplier();
+                    }
+                }
+            }
+
+            // 2. SETEAR EL DAÑO FINAL MODIFICADO
+            event.setDamage(finalDamage);
+
+            // 3. PREPARAR EL CONTEXTO PARA LOS EFECTOS DE ACCIÓN (INCLUYENDO LIFESTEAL)
+            EffectContext actionContext = new EffectContext(
                     player,
                     target,
                     event,
+                    // ¡Clave! Pasamos el DAÑO ORIGINAL (event.getDamage()) para que Lifesteal lo use
+                    // antes de que Bukkit lo aplique.
                     Collections.singletonMap("damage_amount", event.getDamage()),
                     customItem.getKey(),
                     plugin
             );
+
+            // 4. EJECUTAR EFECTOS DE ACCIÓN (LIFESTEAL, LIGHTNING, etc.)
             for (Effect effect : effects) {
-                effect.apply(context);
+                // Lifesteal ahora se ejecuta como un efecto normal de acción
+                if (!(effect instanceof DamageMultiplierEffect)) {
+                    effect.apply(actionContext);
+                }
             }
+
         } finally {
             isApplyingCustomDamage = false;
         }
