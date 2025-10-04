@@ -118,6 +118,7 @@ public class BreakBlockEffect extends BaseEffect {
         if (player == null) return Collections.emptyList();
 
         Block startBlock = null;
+        // ... (Lógica para encontrar startBlock, no la necesitamos cambiar) ...
         if (targetType == EffectTarget.BLOCK_IN_SIGHT) {
             RayTraceResult result = player.rayTraceBlocks(range);
             if (result != null && result.getHitBlock() != null) {
@@ -128,9 +129,12 @@ public class BreakBlockEffect extends BaseEffect {
         }
 
         if (startBlock == null) return Collections.emptyList();
-        if (!mineableBlocks.isEmpty() && !mineableBlocks.contains(startBlock.getType())) return Collections.emptyList();
+
+        // ELIMINAMOS la verificación inicial del startBlock aquí.
+        // Ahora, el filtro se aplica a todos los bloques, incluido el inicial.
 
         List<Block> blocksFound = new ArrayList<>();
+        // ... (Lógica para determinar primaryFace, no la necesitamos cambiar) ...
         Vector direction = player.getEyeLocation().getDirection();
         BlockFace primaryFace;
         double absX = Math.abs(direction.getX());
@@ -158,9 +162,20 @@ public class BreakBlockEffect extends BaseEffect {
                             currentBlock = layerCenterBlock.getRelative(x, y, 0);
                         }
 
-                        if (currentBlock.getType().getHardness() >= 0 && currentBlock.getType() != Material.AIR) {
-                            blocksFound.add(currentBlock);
+                        // --- CORRECCIÓN CLAVE: Aplicar el filtro de Materiales aquí ---
+                        Material currentType = currentBlock.getType();
+
+                        // Condición 1: Debe ser minable (dureza >= 0 y no aire)
+                        if (currentType.getHardness() < 0 || currentType == Material.AIR) {
+                            continue;
                         }
+
+                        // Condición 2: Si la lista de filtrado NO está vacía, el tipo DEBE estar en ella.
+                        if (!mineableBlocks.isEmpty() && !mineableBlocks.contains(currentType)) {
+                            continue;
+                        }
+
+                        blocksFound.add(currentBlock);
                     }
                 }
             }
