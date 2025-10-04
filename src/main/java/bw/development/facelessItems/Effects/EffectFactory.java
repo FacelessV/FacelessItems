@@ -216,7 +216,6 @@ public class EffectFactory {
                 int range = getSafeInt(properties.get("range"), 10);
                 boolean triggerEvent = (boolean) properties.getOrDefault("trigger_event", false);
 
-                // --- CONSTRUCTOR CORREGIDO ---
                 yield new BreakBlockEffect(radius, layers, mineableBlocks, range, target, triggerEvent, conditions, cooldown, cooldownId);
             }
             case "VEIN_MINE" -> {
@@ -224,7 +223,6 @@ public class EffectFactory {
                 List<Material> mineableBlocks = getSafeMaterialList(properties.get("mineable_blocks"));
                 boolean triggerEvent = (boolean) properties.getOrDefault("trigger_event", false);
 
-                // --- CONSTRUCTOR CORREGIDO ---
                 yield new VeinMineEffect(maxBlocks, mineableBlocks, triggerEvent, conditions, cooldown, cooldownId);
             }
             case "CHAIN_LIGHTNING" -> {
@@ -303,6 +301,14 @@ public class EffectFactory {
                 }
 
                 yield new ChainEffect(effectsInChain, delay, conditions, cooldown, cooldownId);
+            }
+            case "DAMAGE_ITEM" -> {
+                int damageAmount = getSafeInt(properties.get("amount"), 1);
+                yield new DamageItemEffect(damageAmount, conditions, cooldown, cooldownId);
+            }
+            case "REPAIR_ITEM" -> {
+                int repairAmount = getSafeInt(properties.get("amount"), 1);
+                yield new RepairItemEffect(repairAmount, conditions, cooldown, cooldownId);
             }
             case "LIFESTEAL" -> {
                 double percentage = getSafeDouble(properties.get("percentage"), 10.0); // 10% por defecto
