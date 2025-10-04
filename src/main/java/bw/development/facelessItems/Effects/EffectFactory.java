@@ -4,6 +4,7 @@ import bw.development.facelessItems.Effects.Conditions.*;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
+import org.bukkit.block.Biome;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.EntityType;
 import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason;
@@ -164,6 +165,32 @@ public class EffectFactory {
         if (conditionsMap.containsKey("is_fully_grown")) {
             boolean value = (boolean) conditionsMap.getOrDefault("is_fully_grown", true);
             conditions.add(new IsFullyGrownCondition(value));
+        }
+
+        for (String key : Arrays.asList("biomes", "not_biomes")) {
+            if (conditionsMap.get(key) instanceof List) {
+                @SuppressWarnings("unchecked")
+                Set<Biome> biomeTypes = ((List<String>) conditionsMap.get(key)).stream()
+                        .map(s -> {
+                            try { return Biome.valueOf(s.toUpperCase()); }
+                            catch (IllegalArgumentException e) { return null; }
+                        })
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet());
+                if (!biomeTypes.isEmpty()) {
+                    conditions.add(new BiomeCondition(biomeTypes, key.startsWith("not_")));
+                }
+            }
+        }
+
+        if (conditionsMap.containsKey("weather")) {
+            String weatherStr = conditionsMap.get("weather").toString().toUpperCase();
+            try {
+                WeatherCondition.WeatherType weatherType = WeatherCondition.WeatherType.valueOf(weatherStr);
+                conditions.add(new WeatherCondition(weatherType));
+            } catch (IllegalArgumentException e) {
+                // Ignorar si el tipo de clima es inválido
+            }
         }
 
         return conditions;

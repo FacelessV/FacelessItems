@@ -344,26 +344,37 @@ public class ItemEventListener implements Listener {
         }
     }
 
+// ItemEventListener.java (Versión más limpia y robusta)
+
     @EventHandler
     public void onPlayerFish(PlayerFishEvent event) {
         Player player = event.getPlayer();
-        ItemStack item = player.getInventory().getItemInMainHand();
-        CustomItem customItem = customItemManager.getCustomItemByItemStack(item);
-        if (customItem == null) return;
 
-        List<Effect> effects = customItem.getEffects("on_fish");
-        if (effects.isEmpty()) return;
+        // Limitamos la ejecución solo a los estados donde puede haber una interacción significativa.
+        if (event.getState() == PlayerFishEvent.State.FISHING ||
+                event.getState() == PlayerFishEvent.State.IN_GROUND ||
+                event.getState() == PlayerFishEvent.State.CAUGHT_ENTITY) {
 
-        EffectContext context = new EffectContext(
-                player,
-                null,
-                event,
-                Collections.emptyMap(),
-                customItem.getKey(),
-                plugin
-        );
-        for (Effect effect : effects) {
-            effect.apply(context);
+            ItemStack item = player.getInventory().getItemInMainHand();
+            CustomItem customItem = customItemManager.getCustomItemByItemStack(item);
+            if (customItem == null) return;
+
+            List<Effect> effects = customItem.getEffects("on_fish");
+            if (effects.isEmpty()) return;
+
+            EffectContext context = new EffectContext(
+                    player,
+                    null,
+                    event,
+                    Collections.emptyMap(),
+                    customItem.getKey(),
+                    plugin
+            );
+            for (Effect effect : effects) {
+                // Confiamos en que la lógica de cada Effect (como GrapplingHookEffect)
+                // verifica el estado interno de fishEvent.getState()
+                effect.apply(context);
+            }
         }
     }
 

@@ -30,17 +30,43 @@ public class GrapplingHookEffect extends BaseEffect {
             return;
         }
 
-        // Your physics logic remains unchanged.
-        if (fishEvent.getState() == PlayerFishEvent.State.IN_GROUND) {
+        if (fishEvent.getState() == PlayerFishEvent.State.IN_GROUND || fishEvent.getState() == PlayerFishEvent.State.CAUGHT_ENTITY) {
             if (fishEvent.getHook() == null) {
                 return;
             }
 
             Location hookLocation = fishEvent.getHook().getLocation();
-            Vector direction = hookLocation.toVector().subtract(player.getLocation().toVector()).normalize();
-            Vector velocity = direction.multiply(strength);
+
+            // --- CÁLCULO DE FUERZA Y DIRECCIÓN ---
+            Vector directionVector = hookLocation.toVector().subtract(player.getLocation().toVector());
+
+            // 1. Distancia Horizontal (La clave para el cálculo de Y)
+            double horizontalDistance = Math.sqrt(directionVector.getX() * directionVector.getX() + directionVector.getZ() * directionVector.getZ());
+
+            // 2. Normalizar la dirección para obtener un vector unitario
+            Vector normalizedDirection = directionVector.normalize();
+
+            // 3. Aplicar la fuerza horizontal configurada (Factor 'strength' del YAML)
+            Vector velocity = normalizedDirection.multiply(strength);
+
+            // 4. CORRECCIÓN CRÍTICA: Impulso Vertical Dinámico (Basado en la distancia)
+            // La fuerza vertical debe ser proporcional a la distancia (o la mitad de la fuerza configurada).
+            // Si el gancho está lejos, necesitas un salto más alto. Usaremos un mínimo de 0.8.
+            double verticalBoost = Math.max(0.8, strength * 0.4);
+
+            // 5. Reiniciamos la velocidad y aplicamos el impulso
+            player.setVelocity(new Vector(0, 0, 0)); // Reseteamos la velocidad para un tirón limpio.
+
+            // Forzamos el componente vertical, manteniendo la fuerza horizontal intacta.
+            velocity.setY(verticalBoost);
 
             player.setVelocity(velocity);
+
+            // Remover el anzuelo
+            fishEvent.getHook().remove();
+
+            // Opcional: Sonido de tirón limpio
+            player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_PLAYER_ATTACK_SWEEP, 1.0f, 2.0f);
         }
     }
 
