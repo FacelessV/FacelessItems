@@ -8,7 +8,7 @@ author: cheinsowman
 commands:
   giveitem:
     description: Da un ítem personalizado a un jugador
-    usage: /giveitem <jugador> <item>
+    usage: /giveitem <jugador> <item> <cantidad>
     permission: facelessitems.giveitem
 
   facelessitems:

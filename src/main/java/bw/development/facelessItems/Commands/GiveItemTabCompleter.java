@@ -9,37 +9,46 @@ import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
 public class GiveItemTabCompleter implements TabCompleter {
 
-    // --- LÍNEA ELIMINADA ---
-    // private final FacelessItems plugin;
     private final CustomItemManager customItemManager;
 
-    // --- CONSTRUCTOR CORREGIDO ---
+    // CONSTRUCTOR
     public GiveItemTabCompleter(CustomItemManager customItemManager) {
         this.customItemManager = customItemManager;
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        // ... tu lógica de TabCompleter (que también está perfecta) no cambia ...
+
+        List<String> completions = new ArrayList<>();
+
         if (args.length == 1) {
-            List<String> playerNames = new ArrayList<>();
+            // ARG 1: Nombres de jugadores en línea
             for (Player player : Bukkit.getOnlinePlayers()) {
-                playerNames.add(player.getName());
+                completions.add(player.getName());
             }
-            return playerNames;
-        }
 
-        if (args.length == 2) {
-            return customItemManager.getAllCustomItems().stream()
+        } else if (args.length == 2) {
+            // ARG 2: Claves de ítems custom
+            completions.addAll(customItemManager.getAllCustomItems().stream()
                     .map(CustomItem::getKey)
-                    .collect(Collectors.toList());
+                    .collect(Collectors.toList()));
+
+        } else if (args.length == 3) {
+            // ARG 3: Cantidades sugeridas (por defecto 1, 16, 64)
+            completions.addAll(Arrays.asList("1", "16", "64"));
         }
 
-        return new ArrayList<>();
+        // Filtramos las sugerencias para que coincidan con lo que el usuario ha escrito
+        String currentArg = args[args.length - 1].toLowerCase();
+
+        return completions.stream()
+                .filter(s -> s.toLowerCase().startsWith(currentArg))
+                .collect(Collectors.toList());
     }
 }

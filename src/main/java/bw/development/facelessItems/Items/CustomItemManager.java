@@ -27,6 +27,7 @@ import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffectType;
 
+import javax.annotation.Nullable;
 import java.io.File;
 import java.text.DecimalFormat;
 import java.util.*;
@@ -327,5 +328,107 @@ public class CustomItemManager {
         return ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', noMiniMessage));
     }
 
+    // CustomItemManager.java
+
+    /**
+     * Remueve una cantidad específica de un ítem custom del inventario.
+     * @param inventory El inventario a modificar.
+     * @param key La clave (ID) del ítem custom a remover (ej: "pico_dragon").
+     * @param amount La cantidad a remover.
+     * @return true si se removió la cantidad solicitada (o más), false si no se tenía suficiente.
+     */
+    public boolean takeItemFromInventory(org.bukkit.inventory.Inventory inventory, String key, int amount) {
+        if (amount <= 0) return true; // Si la cantidad es 0 o menos, ya está "removido"
+
+        // Primero, verificamos si hay suficiente cantidad del ítem custom en el inventario.
+        int foundAmount = 0;
+
+        // Necesitamos la NamespacedKey que usaste para el item_id:
+        NamespacedKey idKey = new NamespacedKey(plugin, "item_id");
+
+        for (ItemStack itemStack : inventory.getContents()) {
+            if (itemStack != null && itemStack.hasItemMeta()) {
+                ItemMeta meta = itemStack.getItemMeta();
+                if (meta.getPersistentDataContainer().has(idKey, PersistentDataType.STRING)) {
+                    String itemId = meta.getPersistentDataContainer().get(idKey, PersistentDataType.STRING);
+
+                    // Si encontramos el ID correcto, sumamos la cantidad.
+                    if (key.equals(itemId)) {
+                        foundAmount += itemStack.getAmount();
+                    }
+                }
+            }
+        }
+
+        // Si no hay suficiente, fallamos.
+        if (foundAmount < amount) {
+            return false;
+        }
+
+        // Si hay suficiente, procedemos a remover la cantidad exacta.
+        return removeCustomItemStacks(inventory, key, amount);
+    }
+
+    /**
+     * Lógica interna para remover ítems custom por slots.
+     * Debe ser llamado SOLAMENTE después de verificar que la cantidad existe (por takeItemFromInventory).
+     */
+    private boolean removeCustomItemStacks(org.bukkit.inventory.Inventory inventory, String key, int amount) {
+        int toRemove = amount;
+        NamespacedKey idKey = new NamespacedKey(plugin, "item_id");
+
+        for (int i = 0; i < inventory.getSize(); i++) {
+            ItemStack itemStack = inventory.getItem(i);
+
+            if (itemStack != null && itemStack.hasItemMeta()) {
+                ItemMeta meta = itemStack.getItemMeta();
+                if (meta.getPersistentDataContainer().has(idKey, PersistentDataType.STRING)) {
+                    String itemId = meta.getPersistentDataContainer().get(idKey, PersistentDataType.STRING);
+
+                    // Si encontramos el ítem custom correcto
+                    if (key.equals(itemId)) {
+                        int stackAmount = itemStack.getAmount();
+
+                        if (stackAmount <= toRemove) {
+                            // Si el stack es menor o igual a lo que necesitamos remover, eliminamos todo el stack
+                            toRemove -= stackAmount;
+                            inventory.setItem(i, null);
+                        } else {
+                            // Si el stack es mayor, simplemente reducimos la cantidad
+                            itemStack.setAmount(stackAmount - toRemove);
+                            toRemove = 0;
+                            // No necesitamos seguir iterando
+                        }
+
+                        if (toRemove == 0) {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Si llegamos aquí, toRemove debe ser 0 porque ya verificamos que había suficiente cantidad
+        return toRemove == 0;
+    }
+
+    /**
+     * Obtiene solo la clave (String ID) de un ItemStack usando la PersistentDataContainer.
+     * @param itemStack El ítem a verificar.
+     * @return La clave del ítem custom, o null.
+     */
+    @Nullable
+    public String getCustomItemKeyFromItemStack(ItemStack itemStack) {
+        if (itemStack == null || !itemStack.hasItemMeta()) return null;
+
+        ItemMeta meta = itemStack.getItemMeta();
+        NamespacedKey idKey = new NamespacedKey(plugin, "item_id"); // Usamos la clave de tu sistema
+
+        if (meta != null && meta.getPersistentDataContainer().has(idKey, PersistentDataType.STRING)) {
+            // Lee y devuelve el ID almacenado en el meta.
+            return meta.getPersistentDataContainer().get(idKey, PersistentDataType.STRING);
+        }
+        return null;
+    }
 
 }
