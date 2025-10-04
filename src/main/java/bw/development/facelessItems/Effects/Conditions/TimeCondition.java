@@ -16,17 +16,26 @@ public class TimeCondition implements Condition {
     public boolean check(EffectContext context) {
         Player user = context.getUser();
         if (user == null) {
-            return true; // Cannot determine time without a player's world
+            // As you correctly noted, the condition passes safely if we cannot identify the user.
+            return true;
         }
 
         World world = user.getWorld();
         long time = world.getTime();
 
-        // In Minecraft, day is roughly 0-12000 ticks, night is 12000-24000
+        // Minecraft Day is tick range [0, 12000)
         boolean isCurrentlyDay = time >= 0 && time < 12000;
 
-        // If the condition requires it to be day, we return true if it is currently day.
-        // If the condition requires it to be night (mustBeDay = false), we return true if it is currently NOT day.
-        return isCurrentlyDay == mustBeDay;
+        // --- CHECK LOGIC ---
+
+        if (mustBeDay) {
+            // If the configuration requires it to be day (e.g., is_day: true),
+            // we check if it IS currently day.
+            return isCurrentlyDay;
+        } else {
+            // If the configuration requires it to be night (e.g., is_day: false),
+            // we check if it IS NOT currently day (i.e., it is night).
+            return !isCurrentlyDay;
+        }
     }
 }

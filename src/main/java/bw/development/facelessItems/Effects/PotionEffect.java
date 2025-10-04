@@ -33,10 +33,14 @@ public class PotionEffect extends TargetedEffect {
     }
 
     // --- MÉTODOS GETTERS NECESARIOS ---
-    // Para que ArmorSetChecker pueda leer las propiedades del efecto.
 
     public PotionEffectType getPotionType() {
         return potionType;
+    }
+
+    // ¡ESTE GETTER FALTABA! Es lo que necesita el PassiveEffectApplier.
+    public int getDuration() {
+        return duration;
     }
 
     public int getAmplifier() {

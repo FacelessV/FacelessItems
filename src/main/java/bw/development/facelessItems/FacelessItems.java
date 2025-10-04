@@ -4,7 +4,7 @@ import bw.development.facelessItems.Api.FacelessItemsAPI;
 import bw.development.facelessItems.Commands.FacelessItemsCommand;
 import bw.development.facelessItems.Commands.GiveItemCommand;
 import bw.development.facelessItems.Commands.GiveItemTabCompleter;
-import bw.development.facelessItems.Effects.CooldownManager; // 1. Import CooldownManager
+import bw.development.facelessItems.Effects.CooldownManager;
 import bw.development.facelessItems.Effects.ShadowCloneEffect;
 import bw.development.facelessItems.Gui.GuiListener;
 import bw.development.facelessItems.Gui.ItemsGUI;
@@ -12,7 +12,7 @@ import bw.development.facelessItems.Items.CustomItemManager;
 import bw.development.facelessItems.Listeners.ItemEventListener;
 import bw.development.facelessItems.Managers.MessageManager;
 import bw.development.facelessItems.Rarity.RarityManager;
-import bw.development.facelessItems.Sets.ArmorSetChecker;
+import bw.development.facelessItems.Sets.SetEquipmentChecker;
 import bw.development.facelessItems.Sets.SetManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -23,7 +23,7 @@ public class FacelessItems extends JavaPlugin {
     private CooldownManager cooldownManager;
     private MessageManager messageManager;
     private SetManager setManager;
-    private ArmorSetChecker armorSetChecker;
+    private SetEquipmentChecker setEquipmentChecker; // <- CAMPO RENOMBRADO
     private ItemsGUI itemsGUI;
     private ItemEventListener itemEventListener;
 
@@ -48,8 +48,9 @@ public class FacelessItems extends JavaPlugin {
 
             this.itemsGUI = new ItemsGUI(customItemManager);
 
-            this.armorSetChecker = new ArmorSetChecker(this, setManager);
-            this.armorSetChecker.runTaskTimer(this, 0L, 20L); // Starts immediately, runs every 20 ticks (1 second)
+            // Usamos la nueva clase refactorizada para revisar equipos y sets.
+            this.setEquipmentChecker = new SetEquipmentChecker(this, setManager);
+            this.setEquipmentChecker.runTaskTimer(this, 0L, 20L); // Scheduler activo
 
             getServer().getPluginManager().registerEvents(new GuiListener(itemsGUI), this);
             this.itemEventListener = new ItemEventListener(this, customItemManager);
@@ -82,6 +83,9 @@ public class FacelessItems extends JavaPlugin {
     public void onDisable() {
         ShadowCloneEffect.cleanUpClones();
         getLogger().info("FacelessItems deshabilitado.");
+    }
+    public SetEquipmentChecker getSetEquipmentChecker() {
+        return setEquipmentChecker;
     }
 
     public static FacelessItems getInstance() {

@@ -227,7 +227,8 @@ public class EffectFactory {
             case "POTION" -> {
                 String potionTypeName = (String) properties.getOrDefault("potion_type", "SPEED");
                 PotionEffectType potionType = PotionEffectType.getByName(potionTypeName.toUpperCase());
-                int duration = getSafeInt(properties.get("duration"), 100);
+
+                int duration = getSafeInt(properties.get("duration"), 40);
                 int amplifier = getSafeInt(properties.get("amplifier"), 0);
 
                 if (potionType == null) yield null;

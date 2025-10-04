@@ -240,9 +240,13 @@ public class CustomItemManager {
                 ItemStack finalItem = auraSkillsManager.applyStatsToItem(itemStack, auraSkillsStats);
 
                 List<BaseEffect> passiveEffects = new ArrayList<>();
-                if (config.isConfigurationSection("passive_effects")) {
-                    // Reutilizamos nuestro parseador de efectos
-                    passiveEffects = EffectFactory.parseTriggerEffects(config.get("passive_effects")).stream()
+
+                // CORRECCIÓN CRÍTICA: La clave "passive_effects" existe y la cargamos.
+                if (config.contains("passive_effects")) {
+                    Object rawPassiveData = config.get("passive_effects");
+
+                    // Usamos el parseador de triggers universal para cargar los efectos de la lista/sección.
+                    passiveEffects = EffectFactory.parseTriggerEffects(rawPassiveData).stream()
                             .filter(BaseEffect.class::isInstance)
                             .map(BaseEffect.class::cast)
                             .collect(Collectors.toList());
