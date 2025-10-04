@@ -9,6 +9,7 @@ import bw.development.facelessItems.Items.CustomItemManager;
 import bw.development.facelessItems.Sets.ArmorSet;
 import bw.development.facelessItems.Sets.ArmorSetBonus;
 import bw.development.facelessItems.Sets.SetManager;
+import dev.aurelium.auraskills.api.event.loot.LootDropEvent;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
@@ -736,5 +737,62 @@ public class ItemEventListener implements Listener {
                 }
             }
         }.runTaskLater(plugin, 1L);
+    }
+
+    /**
+     * Intercepta los drops extras generados por AuraSkills (Luck, habilidades de minería, etc.)
+     * y aplica el efecto de fundición si el pico del jugador lo tiene.
+     */
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onAuraSkillsLootDrop(LootDropEvent event) {
+        // 1. Verificación: Solo procesamos drops causados por jugadores
+        Player player = event.getPlayer();
+        if (player == null) return;
+
+        // Obtenemos el ítem en la mano y el CustomItem
+        ItemStack tool = player.getInventory().getItemInMainHand();
+        CustomItem customItem = customItemManager.getCustomItemByItemStack(tool);
+        if (customItem == null) return;
+
+        // 2. Búsqueda del SmeltEffect
+        // Utilizamos la búsqueda en el trigger 'on_mine' como fuente principal
+        SmeltEffect smeltEffect = customItem.getEffects("on_mine").stream()
+                .filter(SmeltEffect.class::isInstance)
+                .map(SmeltEffect.class::cast)
+                .findFirst().orElse(null);
+
+        // Si no se encuentra en 'on_mine', realizamos la búsqueda en el CHAIN de 'on_use'
+        if (smeltEffect == null) {
+            List<Effect> onUseEffects = customItem.getEffects("on_use");
+            if (!onUseEffects.isEmpty() && onUseEffects.get(0) instanceof ChainEffect chainEffect) {
+                smeltEffect = chainEffect.getChainedEffects().stream()
+                        .filter(SmeltEffect.class::isInstance)
+                        .map(SmeltEffect.class::cast)
+                        .findFirst().orElse(null);
+            }
+        }
+
+        // Si no tiene efecto de fundición, salimos
+        if (smeltEffect == null) return;
+
+        // --- APLICACIÓN DE FUNDICIÓN ---
+
+        // 3. Obtenemos el item que AuraSkills está a punto de soltar
+        ItemStack droppedItem = event.getItem();
+
+        if (droppedItem == null || droppedItem.getType().isAir()) {
+            return;
+        }
+
+        // 4. Verificamos si el item se puede fundir según nuestro mapa SMELT_RESULTS
+        Material smeltedMaterial = smeltEffect.getSmeltedResult(droppedItem.getType());
+
+        if (smeltedMaterial != null) {
+            // Creamos el nuevo ItemStack fundido con la cantidad original
+            ItemStack smeltedStack = new ItemStack(smeltedMaterial, droppedItem.getAmount());
+
+            // 5. ¡REEMPLAZAMOS EL ITEM DEL EVENTO DE AURASKILLS!
+            event.setItem(smeltedStack);
+        }
     }
 }
