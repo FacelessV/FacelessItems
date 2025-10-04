@@ -386,6 +386,42 @@ public class EffectFactory {
                 // Ya no buscamos 'apply_to' ni el enum
                 yield new DamageMultiplierEffect(multiplier, conditions, cooldown, cooldownId);
             }
+
+            case "PARTICLE" -> {
+                String particleName = (String) properties.getOrDefault("particle_type", "CLOUD");
+                Particle particleType;
+                try {
+                    particleType = Particle.valueOf(particleName.toUpperCase());
+                } catch (IllegalArgumentException e) {
+                    particleType = Particle.CLOUD;
+                }
+
+                int amount = getSafeInt(properties.get("amount"), 10);
+                double offsetY = getSafeDouble(properties.get("offset_y"), 1.0);
+
+                double spread = getSafeDouble(properties.get("spread_radius"), 0.5);
+                double speed = getSafeDouble(properties.get("speed"), 0.1);
+
+                yield new ParticleEffect(particleType, amount, offsetY, spread, speed, target, conditions, cooldown, cooldownId);
+            }
+            case "PARTICLE_CIRCLE" -> {
+                String particleName = (String) properties.getOrDefault("particle_type", "CLOUD");
+                Particle particleType;
+                try {
+                    particleType = Particle.valueOf(particleName.toUpperCase());
+                } catch (IllegalArgumentException e) {
+                    particleType = Particle.CLOUD;
+                }
+
+                double radius = getSafeDouble(properties.get("radius"), 1.5);
+                int points = getSafeInt(properties.get("points"), 20);
+                // ELIMINAMOS 'duration' del constructor
+                double offsetY = getSafeDouble(properties.get("offset_y"), 0.1);
+                double speed = getSafeDouble(properties.get("speed"), 0.0);
+
+                // CONSTRUCTOR ACTUALIZADO: Quitamos 'duration'
+                yield new ParticleCircleEffect(particleType, radius, points, offsetY, speed, target, conditions, cooldown, cooldownId);
+            }
             default -> null;
         };
     }
