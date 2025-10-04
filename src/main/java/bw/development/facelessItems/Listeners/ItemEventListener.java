@@ -869,4 +869,85 @@ public class ItemEventListener implements Listener {
             event.setItem(smeltedStack);
         }
     }
+    /**
+     * Intercepta los eventos de daño para aplicar la resistencia al knockback
+     * basada en la armadura equipada por el jugador.
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onKnockbackResistOverride(EntityDamageEvent event) {
+        if (!(event.getEntity() instanceof Player player)) {
+            return;
+        }
+
+        // Si el evento ya fue cancelado, el empuje no ocurrirá, así que salimos.
+        if (event.isCancelled()) {
+            return;
+        }
+
+        // --- Lógica para calcular la resistencia total ---
+        double totalResistance = 0.0;
+
+        // Recorrer armadura equipada para encontrar efectos KNOCKBACK_RESIST
+        for (ItemStack armorPiece : player.getInventory().getArmorContents()) {
+            CustomItem customItem = customItemManager.getCustomItemByItemStack(armorPiece);
+            if (customItem != null) {
+                // Asumimos que la lógica de pasivas se engancha a "on_damage_taken"
+                List<Effect> effects = customItem.getEffects("on_damage_taken");
+
+                for (Effect effect : effects) {
+                    if (effect instanceof KnockbackResistEffect kbResist) {
+
+                        // Necesitas crear un EffectContext para chequear condiciones (ej. damage_cause)
+                        // Este contexto es simplificado, asume que necesitas el atacante si es un EntityDamageByEntityEvent
+                        LivingEntity attacker = (event instanceof EntityDamageByEntityEvent attackEvent)
+                                ? (LivingEntity) attackEvent.getDamager() : null;
+
+                        EffectContext modContext = new EffectContext(player, attacker, event, Collections.emptyMap(), customItem.getKey(), plugin);
+
+                        if (kbResist.getConditions().stream().allMatch(c -> c.check(modContext))) {
+                            totalResistance += kbResist.getResistance();
+                        }
+                    }
+                }
+            }
+        }
+
+        // La resistencia máxima es 1.0 (100%)
+        totalResistance = Math.min(totalResistance, 1.0);
+
+        // --- Lógica de Anulación y Reescalado (FIX) ---
+        if (totalResistance > 0.0) {
+            final double resistance = totalResistance;
+            final Player p = player;
+
+            // Ejecutamos una tarea retrasada un tick para asegurarnos de que Bukkit ya ha aplicado su vector de velocidad
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    // Obtenemos el vector de velocidad que Bukkit aplicó (el knockback)
+                    Vector appliedVelocity = p.getVelocity();
+
+                    // Si la magnitud es insignificante o cero, salimos.
+                    if (appliedVelocity.lengthSquared() < 0.0001) {
+                        return;
+                    }
+
+                    double originalMagnitude = appliedVelocity.length();
+                    // La nueva magnitud es la original multiplicada por el empuje restante.
+                    double remainingPush = 1.0 - resistance;
+                    double finalMagnitude = originalMagnitude * remainingPush;
+
+                    // Calculamos el factor de escala: (magnitud_final / magnitud_original)
+                    double scaleFactor = finalMagnitude / originalMagnitude;
+
+                    // Reescalamos el vector de velocidad
+                    Vector reducedVelocity = appliedVelocity.clone().multiply(scaleFactor);
+
+                    // Aplicamos la velocidad reducida al jugador
+                    p.setVelocity(reducedVelocity);
+                }
+                // Debes reemplazar 'plugin' con la instancia real de tu plugin
+            }.runTaskLater(plugin, 1L);
+        }
+    }
 }

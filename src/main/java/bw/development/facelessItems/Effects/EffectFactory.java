@@ -422,6 +422,20 @@ public class EffectFactory {
                 // CONSTRUCTOR ACTUALIZADO: Quitamos 'duration'
                 yield new ParticleCircleEffect(particleType, radius, points, offsetY, speed, target, conditions, cooldown, cooldownId);
             }
+
+            case "TELEPORT" -> {
+                double distance = getSafeDouble(properties.get("distance"), 10.0);
+                yield new TeleportEffect(distance, target, conditions, cooldown, cooldownId);
+            }
+
+            case "KNOCKBACK_RESIST" -> {
+                // El valor de resistencia (0.0 a 1.0).
+                // 0.8 significa que el knockback se reduce en un 80% (solo pasa el 20%).
+                double resistance = getSafeDouble(properties.get("resistance"), 0.5);
+
+                yield new KnockbackResistEffect(resistance, conditions, cooldown, cooldownId);
+            }
+
             default -> null;
         };
     }
