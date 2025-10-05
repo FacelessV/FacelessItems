@@ -462,6 +462,22 @@ public class EffectFactory {
                 yield new TeleportEffect(distance, target, conditions, cooldown, cooldownId);
             }
 
+            case "ADD_STAT" -> {
+                String statName = (String) properties.getOrDefault("stat", "STRENGTH");
+                double amount = getSafeDouble(properties.get("amount"), 1.0);
+                int durationTicks = getSafeInt(properties.get("duration"), 200);
+
+                String operationStr = (String) properties.getOrDefault("operation", "ADD");
+                AddStatEffect.OperationType operationType;
+                try {
+                    operationType = AddStatEffect.OperationType.valueOf(operationStr.toUpperCase());
+                } catch (IllegalArgumentException e) {
+                    operationType = AddStatEffect.OperationType.ADD;
+                }
+
+                yield new AddStatEffect(statName, amount, durationTicks, operationType, conditions, cooldown, cooldownId);
+            }
+
             case "KNOCKBACK_RESIST" -> {
                 // El valor de resistencia (0.0 a 1.0).
                 // 0.8 significa que el knockback se reduce en un 80% (solo pasa el 20%).

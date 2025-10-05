@@ -24,7 +24,7 @@ public class PassiveEffectApplier {
         EffectContext context = new EffectContext(player, player, null, new HashMap<>(), "PASSIVE_CHECK", plugin);
 
         // DEBUG E: Verificar si la lista no está vacía al inicio del Applier
-        plugin.getLogger().info("DEBUG APPLIER: Procesando " + allPassiveEffects.size() + " efectos para " + player.getName());
+        //plugin.getLogger().info("DEBUG APPLIER: Procesando " + allPassiveEffects.size() + " efectos para " + player.getName());
 
         // 1. Procesar todos los efectos
         for (BaseEffect effect : allPassiveEffects) {
@@ -37,16 +37,10 @@ public class PassiveEffectApplier {
 
             if (conditionsMet) {
                 // DEBUG F: La condición fue TRUE.
-                plugin.getLogger().info("DEBUG APPLIER: Condición OK para: " + effect.getType());
+                //plugin.getLogger().info("DEBUG APPLIER: Condición OK para: " + effect.getType());
 
                 // --- APLICACIÓN CRÍTICA DE POTIONS ---
                 if (effect instanceof bw.development.facelessItems.Effects.PotionEffect potionEffect) {
-
-                    // DEBUG G: Parámetros de la poción
-                    plugin.getLogger().info(String.format("DEBUG APPLIER: Añadiendo POCIÓN: %s, Duración: %d, Amp: %d",
-                            potionEffect.getPotionType().getName(),
-                            potionEffect.getDuration(),
-                            potionEffect.getAmplifier()));
 
                     effectsToApply.add(new PotionEffect(
                             potionEffect.getPotionType(),
@@ -68,7 +62,7 @@ public class PassiveEffectApplier {
         }
 
         // DEBUG H: Total de pociones finales a aplicar
-        plugin.getLogger().info("DEBUG APPLIER: Total de pociones a aplicar: " + effectsToApply.size());
+       // plugin.getLogger().info("DEBUG APPLIER: Total de pociones a aplicar: " + effectsToApply.size());
 
         // 3. Aplicar todos los efectos nuevos/actuales.
         for (PotionEffect newEffect : effectsToApply) {

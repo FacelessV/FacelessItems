@@ -45,13 +45,13 @@ public class SetEquipmentChecker extends BukkitRunnable {
         equippedItems.add(player.getInventory().getItemInMainHand());
         equippedItems.add(player.getInventory().getItemInOffHand());
 
-        plugin.getLogger().info("DEBUG CHECKER: Iniciando revisión de equipos para " + player.getName());
+       // plugin.getLogger().info("DEBUG CHECKER: Iniciando revisión de equipos para " + player.getName());
 
         for (ItemStack equippedItem : equippedItems) {
 
             // DEBUG A: Verificación de Slot (Solo para ítems no nulos/aire)
             if (equippedItem != null && equippedItem.getType() != Material.AIR) {
-                plugin.getLogger().info("DEBUG CHECKER: Slot Item Type: " + equippedItem.getType().name());
+             //   plugin.getLogger().info("DEBUG CHECKER: Slot Item Type: " + equippedItem.getType().name());
             }
 
             CustomItem customItem = plugin.getCustomItemManager().getCustomItemByItemStack(equippedItem);
@@ -59,13 +59,13 @@ public class SetEquipmentChecker extends BukkitRunnable {
             if (customItem != null) {
 
                 // DEBUG B: Detección de Custom Item
-                plugin.getLogger().info("DEBUG CHECKER: Ítem custom DETECTADO: " + customItem.getKey());
+             //   plugin.getLogger().info("DEBUG CHECKER: Ítem custom DETECTADO: " + customItem.getKey());
 
                 // A. ACUMULAR PASIVOS DE ÍTEM INDIVIDUAL
                 List<BaseEffect> itemPassives = customItem.getPassiveEffects();
                 if (!itemPassives.isEmpty()) {
                     // DEBUG C: Confirmación de Pasivas Cargadas
-                    plugin.getLogger().info("DEBUG CHECKER: Pasivas añadidas desde el ítem: " + customItem.getKey() + " (Cantidad: " + itemPassives.size() + ")");
+               //     plugin.getLogger().info("DEBUG CHECKER: Pasivas añadidas desde el ítem: " + customItem.getKey() + " (Cantidad: " + itemPassives.size() + ")");
                     allPassiveEffects.addAll(itemPassives);
                 }
 
@@ -96,7 +96,7 @@ public class SetEquipmentChecker extends BukkitRunnable {
         }
 
         // DEBUG D: Total final de pasivas a procesar
-        plugin.getLogger().info("DEBUG CHECKER: Total de pasivas acumuladas para Applier: " + allPassiveEffects.size());
+        //plugin.getLogger().info("DEBUG CHECKER: Total de pasivas acumuladas para Applier: " + allPassiveEffects.size());
 
         // 3. ¡DELEGAR LA APLICACIÓN AL APPLIER!
         passiveEffectApplier.applyEffects(player, allPassiveEffects, activeSetEffects);
