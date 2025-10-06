@@ -57,7 +57,6 @@ public class ItemEventListener implements Listener {
 
 // ItemEventListener.java
 
-    @EventHandler
     public void onPlayerDamage(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Player player)) {
             return;
@@ -67,6 +66,54 @@ public class ItemEventListener implements Listener {
         if (event instanceof EntityDamageByEntityEvent damageByEntityEvent) {
             attacker = damageByEntityEvent.getDamager();
         }
+
+        // =========================================================
+        // --- 0. INTERCEPTACIÓN: Lógica de Bloqueo de Escudo (on_shield_block) ---
+        // =========================================================
+        if (event instanceof EntityDamageByEntityEvent damageByEntityEvent && attacker != null) {
+
+            // 1. Verificar si el jugador está en la animación de bloqueo
+            if (player.isBlocking()) {
+
+                // 2. Verificar si el daño fue cancelado o reducido a cero (bloqueo exitoso de Bukkit)
+                if (event.getDamage() == 0.0 || event.isCancelled()) {
+
+                    // Obtener todos los ítems relevantes (armadura + ambas manos)
+                    List<ItemStack> allEquipment = new ArrayList<>();
+                    allEquipment.addAll(Arrays.asList(player.getInventory().getArmorContents()));
+                    allEquipment.add(player.getInventory().getItemInMainHand());
+                    allEquipment.add(player.getInventory().getItemInOffHand());
+
+                    // Recorrer el equipo para activar el nuevo trigger "on_shield_block"
+                    for (ItemStack item : allEquipment) {
+                        CustomItem customItem = customItemManager.getCustomItemByItemStack(item);
+                        if (customItem != null) {
+                            List<Effect> effects = customItem.getEffects("on_shield_block");
+
+                            for (Effect effect : effects) {
+                                // Creamos el contexto con el atacante y el evento de daño original
+                                EffectContext blockContext = new EffectContext(
+                                        player,
+                                        attacker,
+                                        event,
+                                        Collections.emptyMap(),
+                                        customItem.getKey(),
+                                        plugin
+                                );
+                                effect.apply(blockContext);
+                            }
+                        }
+                    }
+
+                    // Nota: No se retorna, permitiendo que las Fases 1 y 2 ejecuten si hay
+                    // efectos pasivos que deben chequearse incluso si el daño es 0.0.
+                }
+            }
+        }
+        // =========================================================
+        // --- FIN 0. INTERCEPTACIÓN ---
+        // =========================================================
+
 
         double finalDamage = event.getDamage(); // Inicializamos el daño a modificar
 
@@ -95,8 +142,7 @@ public class ItemEventListener implements Listener {
         }
 
         // --- APLICACIÓN DE MODIFICADORES DE SET BONUS (Si existen) ---
-        // La lógica de Bonus de Set debe repetirse aquí si el bonus tiene un DamageMultiplierEffect
-        // para que aplique antes del setDamage(). (Asumimos que el setBonus no tiene multiplicadores por ahora para simplificar).
+        // (La lógica de Bonus de Set iría aquí si tuviera DamageMultiplierEffect)
 
         // --- FINAL DE LA FASE 1 ---
         // Aplicamos el daño final modificado a Bukkit antes de ejecutar las acciones.
@@ -682,63 +728,77 @@ public class ItemEventListener implements Listener {
         CustomItem customItem = customItemManager.getCustomItemByItemStack(tool);
         if (customItem == null) return;
 
-        // --- 1. BÚSQUEDA DE SMELT (CON GARANTÍA 'FINAL') ---
+        // --- SETUP: CONTEXTO Y BÚSQUEDA DE EFECTOS ---
+        EffectContext context = new EffectContext(player, null, event, new HashMap<>(Map.of("broken_block", event.getBlock())), customItem.getKey(), plugin);
 
-        // Declaramos la variable principal como 'final' para que pueda ser usada en la lambda.
-        final SmeltEffect smeltEffect;
+        // 1. BÚSQUEDA DE SMELT (Modificador de Sustitución)
+        // El método auxiliar encuentra el efecto SMELT en on_mine o en el CHAIN.
+        final SmeltEffect smeltEffect = findSmeltEffect(customItem);
 
-        // Usamos una variable temporal para realizar la búsqueda.
-        SmeltEffect tempSmeltEffect = null;
+        // 2. BÚSQUEDA DE LOOT MULTIPLIER (Modificador de Cantidad)
+        // El método auxiliar busca el LOOT_MULTIPLIER en el trigger 'on_mine'.
+        final LootMultiplierEffect lootEffect = findLootMultiplierEffect(customItem);
 
-        // A. Buscar en el trigger Pasivo (on_mine)
-        tempSmeltEffect = customItem.getEffects("on_mine").stream()
+        // Si no hay ningún modificador relevante, salimos.
+        if (smeltEffect == null && lootEffect == null) return;
+
+        // --- 3. PROCESAMIENTO DE SMELT (Sustitución y EXP) ---
+        if (smeltEffect != null) {
+            // Chequeamos condiciones de fundición contra el bloque roto.
+            boolean smeltConditionsMet = checkConditions(smeltEffect, context, event.getBlockState().getType());
+
+            if (smeltConditionsMet) {
+                // Aplicación de EXP y Sustitución de Ítems (Lógica de reemplazo)
+                applySmeltLogic(smeltEffect, event);
+            }
+        }
+
+        // --- 4. PROCESAMIENTO DE LOOT MULTIPLIER (Multiplicación de Cantidad) ---
+        // Este paso debe ir AL FINAL, ya que actúa sobre los ítems finales (ya fundidos o no).
+        if (lootEffect != null) {
+            // Chequeamos condiciones para la multiplicación de botín
+            boolean lootConditionsMet = checkConditions(lootEffect, context, event.getBlockState().getType());
+
+            if (lootConditionsMet) {
+                // Aplicamos el multiplicador a la lista de drops
+                applyLootMultiplier(lootEffect, event.getItems());
+            }
+        }
+    }
+
+    // =======================================================================
+// --- MÉTODOS AUXILIARES (DEBEN AÑADIRSE A ITEMEVENTLISTENER.JAVA) ---
+// =======================================================================
+
+    private SmeltEffect findSmeltEffect(CustomItem customItem) {
+        // Busca en on_mine
+        SmeltEffect tempSmeltEffect = customItem.getEffects("on_mine").stream()
                 .filter(SmeltEffect.class::isInstance)
                 .map(SmeltEffect.class::cast)
                 .findFirst().orElse(null);
 
-        // B. Si no se encuentra, buscar en el trigger Activo (on_use, dentro del Chain)
+        // Si no se encuentra, busca en el CHAIN de on_use
         if (tempSmeltEffect == null) {
             List<Effect> onUseEffects = customItem.getEffects("on_use");
-
-            // Asumimos que el primer efecto en on_use es el CHAIN
             if (!onUseEffects.isEmpty() && onUseEffects.get(0) instanceof ChainEffect chainEffect) {
-
-                // Buscamos el SmeltEffect DENTRO de los efectos encadenados
-                // (Asume que getChainedEffects() ya se añadió a ChainEffect.java)
-                tempSmeltEffect = chainEffect.getChainedEffects().stream()
+                return chainEffect.getChainedEffects().stream()
                         .filter(SmeltEffect.class::isInstance)
                         .map(SmeltEffect.class::cast)
                         .findFirst().orElse(null);
             }
         }
+        return tempSmeltEffect;
+    }
 
-        // Asignamos el resultado final a la variable 'final'
-        smeltEffect = tempSmeltEffect;
+    private LootMultiplierEffect findLootMultiplierEffect(CustomItem customItem) {
+        return customItem.getEffects("on_mine").stream()
+                .filter(LootMultiplierEffect.class::isInstance)
+                .map(LootMultiplierEffect.class::cast)
+                .findFirst().orElse(null);
+    }
 
-        // Si no se encontró en ninguno de los dos lugares, no fundimos nada.
-        if (smeltEffect == null) return;
-
-        // --- 2. VERIFICACIÓN DE CONDICIONES ---
-        boolean conditionsMet = true;
-        EffectContext context = new EffectContext(player, null, event, new HashMap<>(Map.of("broken_block", event.getBlock())), customItem.getKey(), plugin);
-
-        for (Condition condition : smeltEffect.getConditions()) {
-            if (condition instanceof BlockCondition blockCond) {
-                if (!blockCond.matches(event.getBlockState().getType())) {
-                    conditionsMet = false;
-                    break;
-                }
-            } else {
-                if (!condition.check(context)) {
-                    conditionsMet = false;
-                    break;
-                }
-            }
-        }
-
-        if (!conditionsMet) return;
-
-        // --- 3. APLICACIÓN DE EXPERIENCIA ---
+    private void applySmeltLogic(SmeltEffect smeltEffect, BlockDropItemEvent event) {
+        // 1. Aplicación de Experiencia
         if (smeltEffect.dropExperience) {
             int exp = smeltEffect.getExperience(event.getBlockState().getType());
             if (exp > 0) {
@@ -746,28 +806,53 @@ public class ItemEventListener implements Listener {
             }
         }
 
-        // --- 4. SUSTITUCIÓN DE ÍTEMS (Lógica que faltaba) ---
-        List<org.bukkit.entity.Item> drops = event.getItems();
-
-        drops.removeIf(itemEntity -> {
+        // 2. Sustitución de ÍTEMS
+        event.getItems().removeIf(itemEntity -> {
             ItemStack itemStack = itemEntity.getItemStack();
-
-            // La variable 'smeltEffect' es final, por lo que su uso aquí es seguro.
             Material smeltedMaterial = smeltEffect.getSmeltedResult(itemStack.getType());
 
             if (smeltedMaterial != null) {
-                // Creamos el nuevo ItemStack fundido
                 ItemStack smeltedStack = new ItemStack(smeltedMaterial, itemStack.getAmount());
-
-                // Lo dropeamos al mundo
                 event.getBlock().getWorld().dropItemNaturally(itemEntity.getLocation(), smeltedStack);
-
-                // Retorna TRUE para ELIMINAR el ítem original (el mineral)
-                return true;
+                return true; // Elimina el original
             }
-
-            return false; // Mantiene el ítem sin fundir
+            return false;
         });
+    }
+
+    private void applyLootMultiplier(LootMultiplierEffect lootEffect, List<org.bukkit.entity.Item> drops) {
+        double multiplier = lootEffect.getMultiplier();
+        for (org.bukkit.entity.Item itemEntity : drops) {
+            ItemStack itemStack = itemEntity.getItemStack();
+
+            // Calculamos la nueva cantidad (usando Math.floor para obtener un entero seguro)
+            int newAmount = (int) Math.floor(itemStack.getAmount() * multiplier);
+
+            // Si la cantidad es válida y mayor que la original, la aplicamos.
+            if (newAmount > itemStack.getAmount() && newAmount > 0) {
+                itemStack.setAmount(newAmount);
+                itemEntity.setItemStack(itemStack);
+            }
+        }
+    }
+
+    private boolean checkConditions(BaseEffect effect, EffectContext context, Material brokenBlockType) {
+        // Si la lista de condiciones es nula o vacía, la condición pasa
+        if (effect.getConditions().isEmpty()) return true;
+
+        for (Condition condition : effect.getConditions()) {
+            // Manejar el caso especial de BlockCondition (que solo chequea el material del bloque)
+            if (condition instanceof BlockCondition blockCond) {
+                if (!blockCond.matches(brokenBlockType)) {
+                    return false;
+                }
+            }
+            // Chequear todas las demás condiciones que usan el contexto completo
+            else if (!condition.check(context)) {
+                return false;
+            }
+        }
+        return true;
     }
     /**
      * Runs modifier effects like SMELT or REPLANT when they are standalone.
@@ -959,6 +1044,39 @@ public class ItemEventListener implements Listener {
                 }
                 // Debes reemplazar 'plugin' con la instancia real de tu plugin
             }.runTaskLater(plugin, 1L);
+        }
+    }
+
+    @EventHandler
+    public void onPlayerItemConsume(org.bukkit.event.player.PlayerItemConsumeEvent event) {
+        Player player = event.getPlayer();
+        ItemStack consumedItem = event.getItem();
+
+        // 1. Verificar si el ítem consumido es custom
+        CustomItem customItem = customItemManager.getCustomItemByItemStack(consumedItem);
+        if (customItem == null) {
+            return;
+        }
+
+        // 2. Obtener y verificar los efectos para el nuevo trigger
+        List<Effect> effects = customItem.getEffects("on_consume");
+        if (effects.isEmpty()) {
+            return;
+        }
+
+        // 3. Crear el contexto y aplicar los efectos
+        // El targetEntity es null ya que el efecto es sobre el usuario.
+        EffectContext context = new EffectContext(
+                player,
+                null,
+                event,
+                Collections.singletonMap("consumed_item_key", customItem.getKey()), // Se puede pasar data relevante
+                customItem.getKey(),
+                plugin
+        );
+
+        for (Effect effect : effects) {
+            effect.apply(context);
         }
     }
 }
