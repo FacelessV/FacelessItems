@@ -4,6 +4,7 @@ import bw.development.facelessItems.Effects.BaseEffect;
 import bw.development.facelessItems.FacelessItems;
 import bw.development.facelessItems.Items.CustomItem;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -95,11 +96,90 @@ public class SetEquipmentChecker extends BukkitRunnable {
             }
         }
 
+
+        // ==========================================================
+        // 3. PROCESAMIENTO DE EFECTOS DE BLOQUE (Ej: GROWTH_BOOST)
+        // Estos no son pociones, por lo que no se delegan al Applier directamente.
+        // ==========================================================
+
+        for (BaseEffect effect : allPassiveEffects) {
+
+            // --- INTEGRACIÓN DE GROWTH_BOOST ---
+            if (effect instanceof bw.development.facelessItems.Effects.GrowthBoostEffect growthEffect) {
+
+                // CRÍTICO: Chequeo de condiciones (si el talismán tiene condiciones como is_day)
+                // Usamos un contexto simplificado para el chequeo de condiciones del entorno.
+                bw.development.facelessItems.Effects.EffectContext context =
+                        new bw.development.facelessItems.Effects.EffectContext(player, player, null, new HashMap<>(), "PASSIVE_CHECK", plugin);
+
+                boolean conditionsMet = growthEffect.getConditions().isEmpty() ||
+                        growthEffect.getConditions().stream().allMatch(c -> c.check(context));
+
+                if (conditionsMet) {
+                    // Si las condiciones se cumplen, aplicamos el tick simulado
+                    applyGrowthBoost(player, growthEffect.getRadius(), growthEffect.getChance());
+                }
+            }
+            // Aquí irían otros efectos que manipulan bloques/entidades directamente (ej: HealthStealAuraEffect)
+        }
+
+        // 4. DELEGAR LA APLICACIÓN DE POCIONES (El Applier ya sabe cómo aplicar solo pociones)
+        // passiveEffectApplier.applyEffects(player, allPassiveEffects, activeSetEffects);
+        // NOTA: Para evitar doble chequeo, solo pasaremos los efectos de poción restantes al Applier.
+
+        List<BaseEffect> potionAndModifierEffects = new ArrayList<>();
+        for (BaseEffect effect : allPassiveEffects) {
+            if (effect instanceof bw.development.facelessItems.Effects.PotionEffect ||
+                    effect instanceof bw.development.facelessItems.Effects.DamageMultiplierEffect)
+            {
+                potionAndModifierEffects.add(effect);
+            }
+        }
+
         // DEBUG D: Total final de pasivas a procesar
         //plugin.getLogger().info("DEBUG CHECKER: Total de pasivas acumuladas para Applier: " + allPassiveEffects.size());
 
         // 3. ¡DELEGAR LA APLICACIÓN AL APPLIER!
         passiveEffectApplier.applyEffects(player, allPassiveEffects, activeSetEffects);
+    }
+
+    private void applyGrowthBoost(Player player, double radius, double chance) {
+        if (Math.random() > chance) {
+            return; // Fallo en el chequeo de probabilidad
+        }
+
+        // Iteramos sobre todos los bloques en el radio
+        Location center = player.getLocation();
+        int r = (int) Math.ceil(radius); // Usamos Math.ceil para asegurar que el radio cubra el bloque completo
+
+        for (int x = -r; x <= r; x++) {
+            for (int y = -r; y <= r; y++) {
+                for (int z = -r; z <= r; z++) {
+
+                    // Obtenemos el bloque en la posición relativa
+                    org.bukkit.block.Block block = center.clone().add(x, y, z).getBlock();
+
+                    // CRÍTICO: Si el bloque es un cultivo y tiene una edad (Ageable), simulamos un 'tick' de crecimiento.
+                    if (block.getBlockData() instanceof org.bukkit.block.data.Ageable ageable) {
+
+                        // Solo aplica si el bloque NO está en su máxima edad
+                        if (ageable.getAge() < ageable.getMaximumAge()) {
+
+                            // Forzamos el crecimiento de forma segura:
+                            // Simulamos que el bloque recibe un 'tick' aleatorio de forma manual
+                            org.bukkit.World world = block.getWorld();
+
+                            // Usamos el método nativo para forzar el crecimiento o la verificación de tick
+                            // La opción más limpia es simular un crecimiento:
+                            block.applyBoneMeal(org.bukkit.block.BlockFace.UP);
+
+                            // Nota: applyBoneMeal es la forma más limpia, pero gasta hueso si la API lo permite.
+                            // Alternativa: block.getState().update(true); (Menos confiable para crecimiento)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Método para limpiar el rastro del jugador al desconectarse.

@@ -486,6 +486,42 @@ public class EffectFactory {
                 yield new KnockbackResistEffect(resistance, conditions, cooldown, cooldownId);
             }
 
+            // --- NUEVO CASO: GROWTH_BOOST (Aceleración Agrícola) ---
+            case "GROWTH_BOOST" -> {
+                // Radio de influencia del crecimiento simulado, por defecto 5 bloques.
+                double radius = getSafeDouble(properties.get("radius"), 5.0);
+
+                // Probabilidad de aplicar un tick extra, por defecto 5%.
+                double chance = getSafeDouble(properties.get("chance"), 0.05);
+
+                // Nota: Este efecto es pasivo y no usa TargetType.
+                yield new GrowthBoostEffect(radius, chance, conditions, cooldown, cooldownId);
+            }
+
+            case "ADD_TRAIT" -> {
+                String traitName = (String) properties.getOrDefault("trait", "GENERIC_TRAIT"); // Usa un placeholder adecuado
+                double amount = getSafeDouble(properties.get("amount"), 1.0);
+                int durationTicks = getSafeInt(properties.get("duration"), 200);
+
+                String operationStr = (String) properties.getOrDefault("operation", "ADD");
+                AddTraitEffect.OperationType operationType;
+                try {
+                    operationType = AddTraitEffect.OperationType.valueOf(operationStr.toUpperCase());
+                } catch (IllegalArgumentException e) {
+                    operationType = AddTraitEffect.OperationType.ADD;
+                }
+
+                yield new AddTraitEffect(traitName, amount, durationTicks, operationType, conditions, cooldown, cooldownId);
+            }
+
+            // --- NUEVO CASO: LOOT_MULTIPLIER ---
+            case "LOOT_MULTIPLIER" -> {
+                // Lee el valor del multiplicador (Ej: 1.5)
+                double multiplier = getSafeDouble(properties.get("multiplier"), 1.0);
+
+                yield new LootMultiplierEffect(multiplier, conditions, cooldown, cooldownId);
+            }
+
             default -> null;
         };
     }
