@@ -94,6 +94,28 @@ public class CustomItemManager {
                 ItemMeta meta = itemStack.getItemMeta();
                 if (meta == null) continue;
 
+                // --- AÑADIR: LÓGICA DE TEXTURA BASE64 ---
+                String base64Texture = config.getString("base64_texture");
+
+                if (base64Texture != null && !base64Texture.isEmpty()) {
+                    // 1. Forzar el material a ser una cabeza si no lo es (necesario para SkullMeta)
+                    if (material != Material.PLAYER_HEAD) {
+                        itemStack.setType(Material.PLAYER_HEAD);
+                        meta = itemStack.getItemMeta(); // Re-obtener meta por si el tipo cambió
+                        if (meta == null) continue;
+                    }
+
+                    // 2. Aplicar la textura si es SkullMeta
+                    if (meta instanceof org.bukkit.inventory.meta.SkullMeta skullMeta) {
+                        try {
+                            // Utilizamos la clase utilitaria para aplicar la textura
+                            applyTextureToSkullMeta(skullMeta, base64Texture);
+                        } catch (Exception e) {
+                            plugin.getLogger().warning("Error al aplicar textura Base64 para el ítem " + key + ": " + e.getMessage());
+                        }
+                    }
+                }
+
                 if (meta instanceof PotionMeta potionMeta && config.isConfigurationSection("potion-meta")) {
 
                     ConfigurationSection metaSection = config.getConfigurationSection("potion-meta");
@@ -209,6 +231,13 @@ public class CustomItemManager {
 
                 ConfigurationSection propertiesSection = config.getConfigurationSection("properties");
                 if (propertiesSection != null) {
+                    // --- LÓGICA AÑADIDA PARA CUSTOM_MODEL_DATA ---
+                    if (propertiesSection.contains("custom_model_data")) {
+                        int cmd = propertiesSection.getInt("custom_model_data");
+                        meta.setCustomModelData(cmd);
+                        plugin.getLogger().log(Level.FINE, "Aplicado CustomModelData " + cmd + " al item " + key);
+                    }
+
                     List<String> hideFlags = propertiesSection.getStringList("hide-flags");
                     if (!hideFlags.isEmpty()) {
                         for (String flagName : hideFlags) {
@@ -435,4 +464,42 @@ public class CustomItemManager {
         return null;
     }
 
+    /**
+     * Utiliza Reflection para aplicar una textura Base64 a un SkullMeta.
+     * Esto simula el proceso que hace el cliente al cargar una cabeza de jugador.
+     */
+    private void applyTextureToSkullMeta(org.bukkit.inventory.meta.SkullMeta skullMeta, String base64Texture) throws Exception {
+        if (skullMeta == null || base64Texture == null || base64Texture.isEmpty()) {
+            return;
+        }
+
+        // El proceso de aplicación de texturas requiere la NMS/OBC
+        // Usaremos el método setOwnerProfile que requiere un GameProfile de la API de Mojang
+
+        // Importamos las clases de NMS/OBC (debes asegurarte de que estas rutas son correctas para 1.21)
+        Class<?> gameProfileClass = Class.forName("com.mojang.authlib.GameProfile");
+        Class<?> propertyClass = Class.forName("com.mojang.authlib.properties.Property");
+        Class<?> propertyMapClass = Class.forName("com.mojang.authlib.properties.PropertyMap");
+
+        // Crear un GameProfile con un UUID aleatorio y un nombre temporal
+        UUID randomUUID = UUID.randomUUID();
+        Object gameProfile = gameProfileClass.getConstructor(UUID.class, String.class)
+                .newInstance(randomUUID, "FacelessItems_Skin");
+
+        // Crear la PropertyMap y añadir la propiedad 'textures'
+        Object propertyMap = gameProfileClass.getMethod("getProperties").invoke(gameProfile);
+        Object property = propertyClass.getConstructor(String.class, String.class)
+                .newInstance("textures", base64Texture);
+
+        // Usamos el método put de la PropertyMap
+        propertyMapClass.getMethod("put", Object.class, Object.class).invoke(propertyMap, "textures", property);
+
+        // Aplicar el GameProfile al SkullMeta usando Reflection
+        java.lang.reflect.Field profileField = skullMeta.getClass().getDeclaredField("profile");
+        profileField.setAccessible(true);
+        profileField.set(skullMeta, gameProfile);
+
+        // El ítem meta debe ser aplicado al ItemStack (aunque ya lo haces después, es buena práctica)
+        // itemStack.setItemMeta(skullMeta); // No es necesario si se hace después
+    }
 }
