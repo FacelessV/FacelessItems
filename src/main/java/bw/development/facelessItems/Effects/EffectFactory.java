@@ -193,6 +193,98 @@ public class EffectFactory {
             }
         }
 
+        if (conditionsMap.containsKey("health_below")) {
+            double threshold = getSafeDouble(conditionsMap.get("health_below"), 0.5);
+            // Creamos la condición: se activa si la vida es MENOR (true) al umbral
+            conditions.add(new HealthThresholdCondition(threshold, true));
+        }
+        if (conditionsMap.containsKey("health_above")) {
+            double threshold = getSafeDouble(conditionsMap.get("health_above"), 0.5);
+            // Creamos la condición: se activa si la vida es MAYOR (false) al umbral
+            conditions.add(new HealthThresholdCondition(threshold, false));
+        }
+
+        if (conditionsMap.containsKey("is_sneaking") ||
+                conditionsMap.containsKey("is_sprinting") ||
+                conditionsMap.containsKey("is_airborne")) {
+
+            boolean sneak = (boolean) conditionsMap.getOrDefault("is_sneaking", false);
+            boolean sprint = (boolean) conditionsMap.getOrDefault("is_sprinting", false);
+            boolean airborne = (boolean) conditionsMap.getOrDefault("is_airborne", false);
+
+            conditions.add(new MovementStateCondition(sneak, sprint, airborne));
+        }
+
+        // Lógica para CRITICAL HIT
+        String criticalKey = conditionsMap.containsKey("is_critical_hit") ? "is_critical_hit" : "critical_hit";
+        if (conditionsMap.containsKey(criticalKey)) {
+            // Requerir que SÍ sea un golpe crítico
+            boolean value = (boolean) conditionsMap.getOrDefault(criticalKey, true);
+            conditions.add(new CriticalHitCondition(value));
+        }
+
+        // Lógica para NO CRITICAL HIT
+        String notCriticalKey = conditionsMap.containsKey("is_not_critical_hit") ? "is_not_critical_hit" : "not_critical_hit";
+        if (conditionsMap.containsKey(notCriticalKey)) {
+            // Requerir que NO sea un golpe crítico (invertir el valor)
+            boolean value = (boolean) conditionsMap.getOrDefault(notCriticalKey, true);
+            conditions.add(new CriticalHitCondition(!value));
+        }
+
+        // Lógica para CHARGED ATTACK (Ataque Cargado)
+        String chargedKey = conditionsMap.containsKey("is_charged_attack") ? "is_charged_attack" : "charged_attack";
+        if (conditionsMap.containsKey(chargedKey)) {
+            // Requerir que el ataque esté CARGADO
+            boolean value = (boolean) conditionsMap.getOrDefault(chargedKey, true);
+            conditions.add(new ChargedAttackCondition(value));
+        }
+
+        // Lógica para NO CHARGED ATTACK
+        String notChargedKey = conditionsMap.containsKey("is_not_charged_attack") ? "is_not_charged_attack" : "not_charged_attack";
+        if (conditionsMap.containsKey(notChargedKey)) {
+            // Requerir que el ataque NO esté CARGADO (invertir el valor)
+            boolean value = (boolean) conditionsMap.getOrDefault(notChargedKey, true);
+            conditions.add(new ChargedAttackCondition(!value));
+        }
+
+        if (conditionsMap.containsKey("target_has_potion")) {
+            Object rawEffects = conditionsMap.get("target_has_potion");
+            if (rawEffects instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<String> effects = (List<String>) rawEffects;
+                // FALSE: Indica a PotionStatusCondition que revise el TARGET
+                conditions.add(new PotionStatusCondition(effects, false));
+            }
+        }
+
+        // 2. user_has_potion (Revisa el estado de la poción en el jugador que usa el ítem)
+        if (conditionsMap.containsKey("user_has_potion")) {
+            Object rawEffects = conditionsMap.get("user_has_potion");
+            if (rawEffects instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<String> effects = (List<String>) rawEffects;
+                // TRUE: Indica a PotionStatusCondition que revise el USER
+                conditions.add(new PotionStatusCondition(effects, true));
+            }
+        }
+
+        if (conditionsMap.containsKey("has_item")) {
+            Object rawConfig = conditionsMap.get("has_item");
+            if (rawConfig instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> itemConfig = (Map<String, Object>) rawConfig;
+
+                // NOTA: Cambiamos 'key' por 'material' en el parser.
+                String materialKey = (String) itemConfig.getOrDefault("material", "UNKNOWN");
+                int amount = getSafeInt(itemConfig.get("amount"), 1);
+
+                if (!materialKey.equalsIgnoreCase("UNKNOWN") && amount > 0) {
+                    // Instancia la condición con la clave de material unificada
+                    conditions.add(new InventoryStatusCondition(materialKey, amount));
+                }
+            }
+        }
+
         return conditions;
     }
 
@@ -390,6 +482,40 @@ public class EffectFactory {
                 yield new SoundEffect(sound, volume, pitch, target, range, conditions, cooldown, cooldownId);
             }
 
+            case "AREA" -> {
+                double radius = getSafeDouble(properties.get("radius"), 5.0);
+                int maxTargets = getSafeInt(properties.get("max_targets"), 999);
+
+                Object rawNestedEffects = properties.get("effects"); // <--- NUEVA CLAVE: effects
+                List<BaseEffect> nestedEffects = new ArrayList<>();
+
+                if (rawNestedEffects instanceof List) {
+                    // Usamos parseTriggerEffects para cargar de forma recursiva todos los efectos anidados
+                    List<Effect> parsedList = parseTriggerEffects(rawNestedEffects);
+
+                    // Aseguramos que la lista solo contenga efectos base válidos para el Area Wrapper
+                    for (Effect effect : parsedList) {
+                        if (effect instanceof BaseEffect baseEffect) {
+                            nestedEffects.add(baseEffect);
+                        }
+                    }
+                }
+
+                // Si no hay efectos anidados válidos para ejecutar, esta configuración es inválida.
+                if (nestedEffects.isEmpty()) yield null;
+
+                // Creamos el efecto AREA que envuelve a la lista de efectos
+                yield new AreaEffect(
+                        radius,
+                        maxTargets,
+                        nestedEffects, // <--- LISTA de BaseEffect
+                        target, // Target principal (define el centro del AoE, ej: PLAYER)
+                        conditions,
+                        cooldown,
+                        cooldownId
+                );
+            }
+
             case "REPLANT" -> {
                 yield new ReplantEffect(conditions, cooldown, cooldownId);
             }
@@ -521,6 +647,24 @@ public class EffectFactory {
 
                 yield new LootMultiplierEffect(multiplier, conditions, cooldown, cooldownId);
             }
+
+            case "KNOCKBACK" -> {
+                double strength = getSafeDouble(properties.get("strength"), 1.0);
+                // Este efecto solo necesita la fuerza y el objetivo (ENTITY, NEARBY_ENTITIES)
+                yield new KnockbackEffect(strength, target, conditions, cooldown, cooldownId);
+            }
+
+            case "CONSUME_ITEM" -> {
+                // Leemos 'material' en lugar de 'item_key'
+                String materialKey = (String) properties.getOrDefault("material", "UNKNOWN");
+
+                // Usamos getSafeInt para manejar la cantidad de forma segura
+                int amount = getSafeInt(properties.get("amount"), 1);
+
+                // El constructor de ConsumeItemEffect debe aceptar materialKey en lugar de itemKey
+                yield new ConsumeItemEffect(materialKey, amount, conditions, cooldown, cooldownId);
+            }
+
 
             default -> null;
         };

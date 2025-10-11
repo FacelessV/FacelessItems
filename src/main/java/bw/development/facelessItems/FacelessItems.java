@@ -50,7 +50,7 @@ public class FacelessItems extends JavaPlugin {
 
             // Usamos la nueva clase refactorizada para revisar equipos y sets.
             this.setEquipmentChecker = new SetEquipmentChecker(this, setManager);
-            this.setEquipmentChecker.runTaskTimer(this, 0L, 20L); // Scheduler activo
+            this.setEquipmentChecker.runTaskTimer(this, 0L, 40L); // Scheduler activo
 
             getServer().getPluginManager().registerEvents(new GuiListener(itemsGUI), this);
             this.itemEventListener = new ItemEventListener(this, customItemManager);

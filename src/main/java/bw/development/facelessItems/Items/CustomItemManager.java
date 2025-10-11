@@ -6,29 +6,38 @@ import bw.development.facelessItems.Effects.EffectFactory;
 import bw.development.facelessItems.FacelessItems;
 import bw.development.facelessItems.Rarity.Rarity;
 import bw.development.facelessItems.Rarity.RarityManager;
+import com.destroystokyo.paper.profile.PlayerProfile;
 import dev.aurelium.auraskills.api.AuraSkillsApi;
 import dev.aurelium.auraskills.api.stat.Stat;
 import dev.aurelium.auraskills.api.registry.GlobalRegistry;
 import dev.aurelium.auraskills.api.registry.NamespacedId;
-import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.PotionMeta;
+import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.profile.PlayerTextures;
 
 import javax.annotation.Nullable;
 import java.io.File;
+import java.net.URL;
 import java.text.DecimalFormat;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -144,6 +153,236 @@ public class CustomItemManager {
                     }
                 }
 
+                if (meta instanceof org.bukkit.inventory.meta.ShieldMeta shieldMeta) {
+                    ConfigurationSection designSection = config.getConfigurationSection("properties.shield_design");
+
+                    if (designSection != null) {
+                        // 1. Aplicar el Color Base
+                        String colorStr = designSection.getString("base_color");
+                        if (colorStr != null) {
+                            try {
+                                org.bukkit.DyeColor baseColor = org.bukkit.DyeColor.valueOf(colorStr.toUpperCase());
+                                shieldMeta.setBaseColor(baseColor);
+                            } catch (IllegalArgumentException e) {
+                                plugin.getLogger().warning("Color base inválido para el escudo: " + colorStr);
+                            }
+                        }
+
+                        // 2. Aplicar los Patrones (Heredado de BannerMeta)
+                        if (designSection.isList("patterns")) {
+                            List<Map<?, ?>> patternsList = designSection.getMapList("patterns");
+
+                            // Limpiamos los patrones existentes antes de aplicar los nuevos
+                            shieldMeta.setPatterns(new java.util.ArrayList<>());
+
+                            for (Map<?, ?> patternMap : patternsList) {
+                                String patColorStr = (String) patternMap.get("color");
+                                String patTypeStr = (String) patternMap.get("type");
+
+                                try {
+                                    org.bukkit.DyeColor patColor = org.bukkit.DyeColor.valueOf(patColorStr.toUpperCase());
+                                    org.bukkit.block.banner.PatternType patType = org.bukkit.block.banner.PatternType.valueOf(patTypeStr.toUpperCase());
+
+                                    // Creamos el patrón y lo añadimos
+                                    shieldMeta.addPattern(new org.bukkit.block.banner.Pattern(patColor, patType));
+
+                                } catch (IllegalArgumentException e) {
+                                    plugin.getLogger().warning("Patrón o color inválido en el diseño del escudo: " + patTypeStr);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (meta instanceof Damageable damageable) {
+                    ConfigurationSection propertiesSection = config.getConfigurationSection("properties");
+
+                    if (propertiesSection != null) {
+
+                        // 1. Establecer la durabilidad MÁXIMA (max_durability)
+                        if (propertiesSection.contains("max_durability")) {
+                            int maxDurability = propertiesSection.getInt("max_durability");
+                            // Usamos setMaxDamage() para establecer el valor máximo de durabilidad
+                            damageable.setMaxDamage(maxDurability);
+                        }
+
+                        // 2. Establecer el daño INICIAL (cuánto está gastado)
+                        if (propertiesSection.contains("initial_damage")) {
+                            int initialDamage = propertiesSection.getInt("initial_damage");
+                            // Usamos setDamage() para establecer cuánto daño tiene (0 = nuevo)
+                            // Nos aseguramos de que no exceda el máximo
+                            damageable.setDamage(Math.min(initialDamage, damageable.getMaxDamage()));
+                        }
+                    }
+                }
+
+                if (config.isConfigurationSection("enchantments")) {
+                    for (String enchKey : config.getConfigurationSection("enchantments").getKeys(false)) {
+                        try {
+                            Enchantment ench = Enchantment.getByName(enchKey.toUpperCase());
+                            int level = config.getInt("enchantments." + enchKey);
+                            if (ench != null) {
+                                meta.addEnchant(ench, level, true);
+                            } else {
+                                plugin.getLogger().warning("Encantamiento desconocido: " + enchKey + " en item " + key);
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                }
+
+                ConfigurationSection attrSection = config.getConfigurationSection("attributes");
+
+                if (attrSection != null) {
+                    // 1. Iterar sobre CADA ATRIBUTO (Ej: ARMOR, MAX_HEALTH)
+                    for (String attrName : attrSection.getKeys(false)) {
+
+                        ConfigurationSection attributeMods = attrSection.getConfigurationSection(attrName);
+                        if (attributeMods == null) continue;
+
+                        try { // <- TRY 1
+                            // 🚨 CORRECCIÓN: Usar el sistema de Registros para obtener el atributo
+                            Attribute attribute = Bukkit.getRegistry(Attribute.class).get(NamespacedKey.minecraft(attrName.toLowerCase()));
+
+                            if (attribute == null) {
+                                // Si el registro devuelve null, lanzamos la excepción para que el CATCH 1 la capture.
+                                throw new IllegalArgumentException("Atributo no encontrado en el Registro.");
+                            }
+
+                            // 2. Iterar sobre CADA MODIFICADOR DENTRO del atributo
+                            for (String modId : attributeMods.getKeys(false)) {
+                                ConfigurationSection modSection = attributeMods.getConfigurationSection(modId);
+                                if (modSection == null) continue;
+
+                                try { // <- TRY 2: Para atrapar los errores en la conversión del MODIFICADOR
+                                    // Obtener Parámetros del Modificador
+                                    double amount = modSection.getDouble("amount");
+
+                                    String opStr = modSection.getString("operation", "ADD_NUMBER");
+                                    AttributeModifier.Operation operation =
+                                            AttributeModifier.Operation.valueOf(opStr.toUpperCase());
+
+                                    String slotStr = modSection.getString("slot", "ANY");
+                                    EquipmentSlotGroup slotGroup = EquipmentSlotGroup.getByName(slotStr.toUpperCase());
+
+                                    // Crear NamespacedKey único
+                                    NamespacedKey modifierKey = new NamespacedKey(plugin, key + "_" + attrName.toLowerCase() + "_" + modId);
+
+                                    AttributeModifier modifier =
+                                            new AttributeModifier(
+                                                    modifierKey,
+                                                    amount,
+                                                    operation,
+                                                    slotGroup
+                                            );
+
+                                    // 3. Aplicar el modificador al ItemMeta
+                                    meta.addAttributeModifier(attribute, modifier);
+
+                                } catch (IllegalArgumentException e) {
+                                    // CATCH 2: Captura errores de conversión en OPERATION, SLOT o AMOUNT.
+                                    // Ahora modId y attrName están en el alcance (scope) de este catch.
+                                    plugin.getLogger().warning("Error en la configuración del modificador '" + attrName + "." + modId + "' en el ítem " + key + ". Verifique OPERATION o SLOT.");
+                                }
+                            }
+                        } catch (IllegalArgumentException e) {
+                            // CATCH 1: Captura errores de conversión en el nombre del ATRIBUTO (Ej: 'VIDA' en lugar de 'MAX_HEALTH')
+                            plugin.getLogger().warning("Atributo inválido '" + attrName + "' en item " + key + ". Será omitido.");
+                        }
+                    }
+                }
+
+                ConfigurationSection propertiesSection = config.getConfigurationSection("properties");
+                if (propertiesSection != null) {
+                    // --- LÓGICA AÑADIDA PARA CUSTOM_MODEL_DATA ---
+                    if (propertiesSection.contains("custom_model_data")) {
+                        int cmd = propertiesSection.getInt("custom_model_data");
+                        meta.setCustomModelData(cmd);
+                        plugin.getLogger().log(Level.FINE, "Aplicado CustomModelData " + cmd + " al item " + key);
+                    }
+
+                    List<String> hideFlags = propertiesSection.getStringList("hide-flags");
+                    if (!hideFlags.isEmpty()) {
+                        for (String flagName : hideFlags) {
+                            try {
+                                ItemFlag flag = ItemFlag.valueOf(flagName.toUpperCase());
+                                meta.addItemFlags(flag);
+                            } catch (IllegalArgumentException e) {
+                                plugin.getLogger().warning("Flag desconocida en item " + key + ": " + flagName);
+                            }
+                        }
+                    }
+
+                    if (propertiesSection.getBoolean("unbreakable", false)) {
+                        meta.setUnbreakable(true);
+                    }
+                }
+
+                ConfigurationSection attrLoreConfig = plugin.getConfig().getConfigurationSection("lore-settings.attributes-lore");
+                List<String> bukkitAttrLore = new ArrayList<>();
+
+                boolean isFeatureEnabled = attrLoreConfig != null && attrLoreConfig.getBoolean("enabled", true);
+
+                if (isFeatureEnabled && meta.hasAttributeModifiers()) {
+
+                    // --- INICIALIZACIÓN DEL MAPA DE LOCALIZACIÓN (Más Robusto) ---
+                    Map<String, String> localizedNames = new HashMap<>();
+                    ConfigurationSection localizedSection = plugin.getConfig().getConfigurationSection("lore-settings.attributes-lore.localized_names");
+
+                    if (localizedSection != null) {
+                        // Usa el método getString() para obtener valores y evitar fallos de typesafety
+                        for (String attrKey : localizedSection.getKeys(false)) {
+                            String localizedName = localizedSection.getString(attrKey);
+                            if (localizedName != null) {
+                                localizedNames.put(attrKey.toUpperCase(), ChatColor.translateAlternateColorCodes('&', localizedName));
+                            }
+                        }
+                    }
+                    // -----------------------------------------------------------
+
+                    // Lectura del formato y cabecera
+                    String attrHeaderText = attrLoreConfig.getString("header_text", "&d--- Atributos de Combate ---");
+                    String attrFormat = attrLoreConfig.getString("attribute_format", " &6▪ &r&f{amount} &7{name}");
+
+                    Map<Attribute, Double> totalAttributeBonuses = new HashMap<>();
+
+                    // 1. AGREGACIÓN
+                    for (Map.Entry<Attribute, Collection<AttributeModifier>> entry : meta.getAttributeModifiers().asMap().entrySet()) {
+                        double totalBonus = 0.0;
+                        for (AttributeModifier modifier : entry.getValue()) {
+                            if (modifier.getOperation() == AttributeModifier.Operation.ADD_NUMBER) {
+                                totalBonus += modifier.getAmount();
+                            }
+                        }
+                        if (totalBonus != 0.0) {
+                            totalAttributeBonuses.put(entry.getKey(), totalBonus);
+                        }
+                    }
+
+
+                    // 2. CONSTRUCCIÓN DEL LORE
+                    if (!totalAttributeBonuses.isEmpty()) {
+                        if (attrLoreConfig.getBoolean("display_header", true)) {
+                            bukkitAttrLore.add(ChatColor.translateAlternateColorCodes('&', attrHeaderText));
+                        }
+
+                        for (Map.Entry<Attribute, Double> entry : totalAttributeBonuses.entrySet()) {
+                            Attribute attr = entry.getKey();
+                            double amount = entry.getValue();
+
+                            String sign = (amount >= 0) ? "+" : "";
+                            String formattedAmount = formatNumber(amount);
+
+                            String attrName = getLocalizedAttributeName(attr, localizedNames);
+
+                            String line = attrFormat
+                                    .replace("{amount}", sign + formattedAmount)
+                                    .replace("{name}", attrName);
+
+                            bukkitAttrLore.add(ChatColor.translateAlternateColorCodes('&', line));
+                        }
+                    }
+                }
+
                 String rarityId = config.getString("rarity", "COMMON").toUpperCase();
                 RarityManager rarityManager = plugin.getRarityManager();
                 Rarity rarity = rarityManager.getRarity(rarityId);
@@ -201,6 +440,7 @@ public class CustomItemManager {
                     }
                 }
 
+
                 for (String placeholder : loreOrder) {
                     if (placeholder.equals("{rarity}")) {
                         finalLore.addAll(rarityLore);
@@ -208,52 +448,14 @@ public class CustomItemManager {
                         finalLore.addAll(originalLore);
                     } else if (placeholder.equals("{auraskills_stats}")) {
                         finalLore.addAll(statsLore);
+                    } else if (placeholder.equals("{attributes-lore}")) { // <--- NUEVO PLACEHOLDER
+                        finalLore.addAll(bukkitAttrLore);
                     } else {
                         finalLore.add(ChatColor.translateAlternateColorCodes('&', placeholder));
                     }
                 }
 
                 meta.setLore(finalLore);
-
-                if (config.isConfigurationSection("enchantments")) {
-                    for (String enchKey : config.getConfigurationSection("enchantments").getKeys(false)) {
-                        try {
-                            Enchantment ench = Enchantment.getByName(enchKey.toUpperCase());
-                            int level = config.getInt("enchantments." + enchKey);
-                            if (ench != null) {
-                                meta.addEnchant(ench, level, true);
-                            } else {
-                                plugin.getLogger().warning("Encantamiento desconocido: " + enchKey + " en item " + key);
-                            }
-                        } catch (Exception ignored) {}
-                    }
-                }
-
-                ConfigurationSection propertiesSection = config.getConfigurationSection("properties");
-                if (propertiesSection != null) {
-                    // --- LÓGICA AÑADIDA PARA CUSTOM_MODEL_DATA ---
-                    if (propertiesSection.contains("custom_model_data")) {
-                        int cmd = propertiesSection.getInt("custom_model_data");
-                        meta.setCustomModelData(cmd);
-                        plugin.getLogger().log(Level.FINE, "Aplicado CustomModelData " + cmd + " al item " + key);
-                    }
-
-                    List<String> hideFlags = propertiesSection.getStringList("hide-flags");
-                    if (!hideFlags.isEmpty()) {
-                        for (String flagName : hideFlags) {
-                            try {
-                                ItemFlag flag = ItemFlag.valueOf(flagName.toUpperCase());
-                                meta.addItemFlags(flag);
-                            } catch (IllegalArgumentException e) {
-                                plugin.getLogger().warning("Flag desconocida en item " + key + ": " + flagName);
-                            }
-                        }
-                    }
-
-                    if (propertiesSection.getBoolean("unbreakable", false)) {
-                        meta.setUnbreakable(true);
-                    }
-                }
 
                 NamespacedKey idKey = new NamespacedKey(plugin, "item_id");
                 meta.getPersistentDataContainer().set(idKey, PersistentDataType.STRING, key);
@@ -361,47 +563,116 @@ public class CustomItemManager {
         return ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', noMiniMessage));
     }
 
-    // CustomItemManager.java
-
     /**
-     * Remueve una cantidad específica de un ítem custom del inventario.
+     * Remueve una cantidad específica de un ítem custom o vanilla del inventario.
+     *
      * @param inventory El inventario a modificar.
-     * @param key La clave (ID) del ítem custom a remover (ej: "pico_dragon").
+     * @param materialKey La clave del material (ej: "DIAMOND" o "facelessitems:gema_de_energia").
      * @param amount La cantidad a remover.
-     * @return true si se removió la cantidad solicitada (o más), false si no se tenía suficiente.
+     * @return true si se removió la cantidad solicitada, false si no se tenía suficiente.
      */
-    public boolean takeItemFromInventory(org.bukkit.inventory.Inventory inventory, String key, int amount) {
-        if (amount <= 0) return true; // Si la cantidad es 0 o menos, ya está "removido"
+    public boolean takeItemFromInventory(org.bukkit.inventory.Inventory inventory, String materialKey, int amount) {
+        if (amount <= 0) return true;
 
-        // Primero, verificamos si hay suficiente cantidad del ítem custom en el inventario.
-        int foundAmount = 0;
+        // --- 1. PREPARACIÓN DE CLAVES ---
+        String customItemId = materialKey.contains(":")
+                ? materialKey.substring(materialKey.indexOf(":") + 1)
+                : materialKey;
 
-        // Necesitamos la NamespacedKey que usaste para el item_id:
+        Material vanillaMaterial = Material.matchMaterial(materialKey);
         NamespacedKey idKey = new NamespacedKey(plugin, "item_id");
 
+        // --- 2. PRIMERA PASADA: CONTEO (Igual que en countItemInInventory) ---
+        int foundAmount = 0;
         for (ItemStack itemStack : inventory.getContents()) {
-            if (itemStack != null && itemStack.hasItemMeta()) {
+            if (itemStack == null) continue;
+
+            // Chequeo Vanilla
+            if (vanillaMaterial != null && itemStack.getType() == vanillaMaterial) {
+                foundAmount += itemStack.getAmount();
+                continue;
+            }
+
+            // Chequeo Custom Item
+            if (itemStack.hasItemMeta()) {
                 ItemMeta meta = itemStack.getItemMeta();
                 if (meta.getPersistentDataContainer().has(idKey, PersistentDataType.STRING)) {
-                    String itemId = meta.getPersistentDataContainer().get(idKey, PersistentDataType.STRING);
+                    String storedItemId = meta.getPersistentDataContainer().get(idKey, PersistentDataType.STRING);
 
-                    // Si encontramos el ID correcto, sumamos la cantidad.
-                    if (key.equals(itemId)) {
+                    if (customItemId.equals(storedItemId)) {
                         foundAmount += itemStack.getAmount();
                     }
                 }
             }
         }
 
-        // Si no hay suficiente, fallamos.
         if (foundAmount < amount) {
             return false;
         }
 
-        // Si hay suficiente, procedemos a remover la cantidad exacta.
-        return removeCustomItemStacks(inventory, key, amount);
+        // --- 3. SEGUNDA PASADA: REMOCIÓN ---
+        if (vanillaMaterial != null) {
+            // Si es un ítem Vanilla, usamos el método remove() de Bukkit, que es eficiente.
+            // NOTE: El ItemStack con el amount a remover NO tiene que tener metadata.
+            ItemStack toRemove = new ItemStack(vanillaMaterial, amount);
+
+            // remove() de Bukkit ignora la metadata y solo se enfoca en el Material
+            HashMap<Integer, ItemStack> remaining = inventory.removeItem(toRemove);
+
+            // Si remaining está vacío, significa que todo fue removido.
+            return remaining.isEmpty();
+        } else {
+            // Si NO es un ítem Vanilla (es Custom), usamos tu método auxiliar.
+            return removeCustomItemStacks(inventory, customItemId, amount);
+        }
     }
 
+    public int countItemInInventory(Player user, String materialKey) { // Cambiamos itemKey a materialKey para claridad
+        if (user == null || materialKey == null || materialKey.isEmpty()) {
+            return 0;
+        }
+
+        int count = 0;
+
+        // --- 1. PREPARACIÓN DE CLAVES ---
+
+        // Extraer solo el ID si hay un namespace (ej: toma "ejemplo1" de "facelessitems:ejemplo1")
+        String customItemId = materialKey.contains(":")
+                ? materialKey.substring(materialKey.indexOf(":") + 1)
+                : materialKey;
+
+        // Intentar resolver la clave como un material Vanilla (Ej: "DIAMOND")
+        Material vanillaMaterial = Material.matchMaterial(materialKey);
+
+        // NamespacedKey para Custom Item lookup
+        NamespacedKey idKey = new NamespacedKey(plugin, "item_id");
+
+        for (ItemStack itemStack : user.getInventory().getContents()) {
+            if (itemStack == null) continue;
+
+            // --- 2. CHEQUEO DE ÍTEM VANILLA ---
+            if (vanillaMaterial != null && itemStack.getType() == vanillaMaterial) {
+                count += itemStack.getAmount();
+                continue;
+            }
+
+            // --- 3. CHEQUEO DE CUSTOM ITEM ---
+            // Chequeamos solo si el ítemStack tiene metadata (que es donde está nuestro tag)
+            if (itemStack.hasItemMeta()) {
+                ItemMeta meta = itemStack.getItemMeta();
+                if (meta.getPersistentDataContainer().has(idKey, PersistentDataType.STRING)) {
+                    String storedItemId = meta.getPersistentDataContainer().get(idKey, PersistentDataType.STRING);
+
+                    // Comparamos el ID almacenado con la clave extraída
+                    if (customItemId.equals(storedItemId)) {
+                        count += itemStack.getAmount();
+                    }
+                }
+            }
+        }
+
+        return count;
+    }
     /**
      * Lógica interna para remover ítems custom por slots.
      * Debe ser llamado SOLAMENTE después de verificar que la cantidad existe (por takeItemFromInventory).
@@ -465,41 +736,71 @@ public class CustomItemManager {
     }
 
     /**
-     * Utiliza Reflection para aplicar una textura Base64 a un SkullMeta.
-     * Esto simula el proceso que hace el cliente al cargar una cabeza de jugador.
+     * Aplica una textura Base64 a un SkullMeta utilizando la API de Bukkit PlayerProfile.
+     * Esto es compatible con Spigot 1.21 y versiones recientes.
      */
-    private void applyTextureToSkullMeta(org.bukkit.inventory.meta.SkullMeta skullMeta, String base64Texture) throws Exception {
-        if (skullMeta == null || base64Texture == null || base64Texture.isEmpty()) {
+    private void applyTextureToSkullMeta(SkullMeta skullMeta, String base64Texture) throws Exception {
+        if (base64Texture == null || base64Texture.isEmpty()) {
             return;
         }
 
-        // El proceso de aplicación de texturas requiere la NMS/OBC
-        // Usaremos el método setOwnerProfile que requiere un GameProfile de la API de Mojang
+        // 1. Decodificar el Base64 para obtener el JSON completo
+        String decodedJson = new String(Base64.getDecoder().decode(base64Texture));
 
-        // Importamos las clases de NMS/OBC (debes asegurarte de que estas rutas son correctas para 1.21)
-        Class<?> gameProfileClass = Class.forName("com.mojang.authlib.GameProfile");
-        Class<?> propertyClass = Class.forName("com.mojang.authlib.properties.Property");
-        Class<?> propertyMapClass = Class.forName("com.mojang.authlib.properties.PropertyMap");
+        // 2. Extraer la URL de la Textura
+        // ESTA PARTE REQUIERE TU IMPLEMENTACIÓN DE PARSEO JSON
+        String textureUrl;
+        try {
+            // --- INICIO: LÓGICA DE PARSEO JSON (Reemplaza con tu libreria) ---
+            // Ejemplo conceptual usando una sintaxis similar a Gson/org.json:
+            // El JSON decodificado tiene el formato: {"textures":{"SKIN":{"url":"URL_AQUI"}}}
 
-        // Crear un GameProfile con un UUID aleatorio y un nombre temporal
-        UUID randomUUID = UUID.randomUUID();
-        Object gameProfile = gameProfileClass.getConstructor(UUID.class, String.class)
-                .newInstance(randomUUID, "FacelessItems_Skin");
+            // Obtenemos el objeto raíz
+            com.google.gson.JsonObject jsonObject = com.google.gson.JsonParser.parseString(decodedJson).getAsJsonObject();
 
-        // Crear la PropertyMap y añadir la propiedad 'textures'
-        Object propertyMap = gameProfileClass.getMethod("getProperties").invoke(gameProfile);
-        Object property = propertyClass.getConstructor(String.class, String.class)
-                .newInstance("textures", base64Texture);
+            // Navegamos al campo 'textures' -> 'SKIN' -> 'url'
+            textureUrl = jsonObject.getAsJsonObject("textures")
+                    .getAsJsonObject("SKIN")
+                    .get("url").getAsString();
+            // --- FIN: LÓGICA DE PARSEO JSON ---
 
-        // Usamos el método put de la PropertyMap
-        propertyMapClass.getMethod("put", Object.class, Object.class).invoke(propertyMap, "textures", property);
+        } catch (Exception e) {
+            // Loguear el JSON para ver qué está mal
+            plugin.getLogger().log(Level.WARNING, "Fallo al parsear JSON de textura para Base64: " + decodedJson, e);
+            throw new IllegalArgumentException("No se pudo extraer la URL de la textura del JSON decodificado.");
+        }
 
-        // Aplicar el GameProfile al SkullMeta usando Reflection
-        java.lang.reflect.Field profileField = skullMeta.getClass().getDeclaredField("profile");
-        profileField.setAccessible(true);
-        profileField.set(skullMeta, gameProfile);
+        // 3. Crear el PlayerProfile con un UUID y nombre temporales
+        PlayerProfile profile = Bukkit.createProfile(UUID.randomUUID(), null);
 
-        // El ítem meta debe ser aplicado al ItemStack (aunque ya lo haces después, es buena práctica)
-        // itemStack.setItemMeta(skullMeta); // No es necesario si se hace después
+        // 4. Crear el objeto de Texturas y establecer la URL
+        PlayerTextures textures = profile.getTextures();
+
+        // Necesitamos la URL como objeto java.net.URL
+        URL urlObject = new URL(textureUrl);
+
+        // 5. Asignar la textura de la piel
+        textures.setSkin(urlObject);
+
+        // 6. Asignar las texturas y el perfil al SkullMeta
+        profile.setTextures(textures);
+        skullMeta.setOwnerProfile(profile);
+    }
+
+    /**
+     * Convierte el nombre técnico del atributo (MAX_HEALTH) a un nombre legible,
+     * usando el mapa de localización de la configuración.
+     */
+    private String getLocalizedAttributeName(Attribute attribute, Map<String, String> localizedNames) {
+        String attrKey = attribute.name(); // Ej: "MAX_HEALTH"
+
+        // 1. Buscar en el mapa de localización.
+        if (localizedNames.containsKey(attrKey)) {
+            return localizedNames.get(attrKey);
+        }
+
+        // 2. Fallback: Si no se encuentra, usar el nombre técnico limpio.
+        String cleanName = attrKey.replace("_", " ").toLowerCase();
+        return cleanName.substring(0, 1).toUpperCase() + cleanName.substring(1);
     }
 }

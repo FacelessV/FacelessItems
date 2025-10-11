@@ -10,6 +10,7 @@ import bw.development.facelessItems.Sets.ArmorSet;
 import bw.development.facelessItems.Sets.ArmorSetBonus;
 import bw.development.facelessItems.Sets.SetManager;
 import dev.aurelium.auraskills.api.event.loot.LootDropEvent;
+import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
@@ -21,7 +22,10 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockDropItemEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.*;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
@@ -55,8 +59,8 @@ public class ItemEventListener implements Listener {
         return areaEffectUsers;
     }
 
-// ItemEventListener.java
 
+    @EventHandler
     public void onPlayerDamage(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Player player)) {
             return;
@@ -1079,4 +1083,29 @@ public class ItemEventListener implements Listener {
             effect.apply(context);
         }
     }
+
+    @EventHandler
+    public void onBlockPlace(BlockPlaceEvent event) {
+        // 1. Obtener el ítem que se intentó colocar
+        ItemStack placedItem = event.getItemInHand();
+
+        // 2. Verificar si el ítem es un CustomItem
+        CustomItem customItem = customItemManager.getCustomItemByItemStack(placedItem);
+        if (customItem == null) {
+            return;
+        }
+
+        // 3. Chequear la restricción en la configuración
+        // Usamos el archivo de configuración (config) del CustomItem.
+        if (customItem.getConfig().getBoolean("restrictions.cancel_place", false)) {
+
+            // 4. Aplicar la restricción: Cancelar el evento
+            event.setCancelled(true);
+
+            // Opcional: Notificar al jugador
+            event.getPlayer().sendMessage(ChatColor.RED + "¡No puedes colocar este ítem personalizado!");
+        }
+    }
+
+
 }

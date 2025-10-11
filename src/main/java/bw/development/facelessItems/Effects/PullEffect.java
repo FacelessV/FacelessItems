@@ -14,7 +14,9 @@ public class PullEffect extends TargetedEffect {
     private final double radius;
     private final double strength;
 
+    // --- CONSTRUCTOR CORREGIDO: AÑADIDO 'int cooldown' ---
     public PullEffect(double radius, double strength, EffectTarget target, List<Condition> conditions, int cooldown, String cooldownId) {
+        // Ahora pasamos los SEIS argumentos requeridos a la superclase (TargetedEffect)
         super(target, conditions, cooldown, cooldownId);
         this.radius = radius;
         this.strength = strength;
@@ -22,19 +24,34 @@ public class PullEffect extends TargetedEffect {
 
     @Override
     protected void applyToTarget(LivingEntity target, Player user, Event event, EffectContext context) {
-        // 'target' es el punto central de la atracción (el jugador o la entidad golpeada)
+        // 'target' es el punto central de la atracción (el jugador en el caso de on_use).
 
-        // Obtenemos las entidades cercanas al punto central
+        // 1. Obtenemos las entidades cercanas al punto central
         List<Entity> nearbyEntities = target.getNearbyEntities(radius, radius, radius);
 
         for (Entity entity : nearbyEntities) {
-            // Solo afectamos a entidades vivas que no sean el jugador que usa el ítem
-            if (entity instanceof LivingEntity && !entity.equals(user)) {
-                // Calculamos el vector desde la entidad hacia el punto de atracción
-                Vector direction = target.getLocation().toVector().subtract(entity.getLocation().toVector()).normalize();
 
-                // Aplicamos una fuerza para atraer a la entidad
-                entity.setVelocity(direction.multiply(strength));
+            // Solo procesamos entidades vivas que no sean el lanzador
+            if (entity instanceof LivingEntity pulledTarget && !entity.equals(user)) {
+
+                // 2. CREACIÓN DE CONTEXTO TEMPORAL PARA EL FILTRADO
+                EffectContext pullContext = new EffectContext(
+                        user,
+                        pulledTarget,
+                        event,
+                        context.getData(),
+                        context.getItemKey(),
+                        context.getPlugin()
+                );
+
+                // 3. CHEQUEO DE CONDICIONES (Filtro)
+                boolean conditionsMet = this.conditions.stream().allMatch(condition -> condition.check(pullContext));
+
+                if (conditionsMet) {
+                    // 4. Aplicar la fuerza (SOLO si las condiciones pasaron)
+                    Vector direction = target.getLocation().toVector().subtract(entity.getLocation().toVector()).normalize();
+                    entity.setVelocity(direction.multiply(strength));
+                }
             }
         }
     }

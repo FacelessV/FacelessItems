@@ -14,7 +14,7 @@ import java.util.UUID;
 
 public class AddStatEffect extends BaseEffect {
 
-    // Usamos los nombres exactos de AuraSkills para este enum:
+    // Se mantiene el enum de operación
     public enum OperationType {
         ADD,
         MULTIPLY,
@@ -42,28 +42,32 @@ public class AddStatEffect extends BaseEffect {
         AuraSkillsApi auraSkills = AuraSkillsApi.get();
         if (auraSkills == null) return;
 
-        // --- OBTENCIÓN DE LA ESTADÍSTICA (Línea que requiere NamespacedId) ---
+        dev.aurelium.auraskills.api.user.SkillsUser user = auraSkills.getUser(player.getUniqueId());
+        if (user == null) return;
+
+        // --- 1. OBTENCIÓN DE LA ESTADÍSTICA ---
         Stat stat;
         try {
-            stat = Stats.valueOf(statName);
+            stat = Stats.valueOf(statName); // Intenta obtener Vanilla Stat (obsoleto, pero sigue siendo útil)
         } catch (IllegalArgumentException e) {
             // Usa NamespacedId para obtener la estadística custom
             stat = auraSkills.getGlobalRegistry().getStat(NamespacedId.of("auraskills", statName.toLowerCase()));
             if (stat == null) return;
         }
 
-        // --- 2. CONVERSIÓN DIRECTA DE LA OPERACIÓN ---
-        // Mapeamos nuestro ENUM al ENUM de AuraSkills para el constructor.
+        // Mapeamos nuestro ENUM al ENUM de AuraSkills
         AuraSkillsModifier.Operation auraOperation = switch (operation) {
-            // CORRECCIÓN: Ahora usamos los nombres exactos confirmados.
             case ADD -> AuraSkillsModifier.Operation.ADD;
             case MULTIPLY -> AuraSkillsModifier.Operation.MULTIPLY;
             case ADD_PERCENT -> AuraSkillsModifier.Operation.ADD_PERCENT;
         };
 
-        // Generamos un ID único y aplicamos
-        String uniqueModifierId = context.getItemKey() + "_" + stat.getId().getKey() + "_" + UUID.randomUUID().toString().substring(0, 6);
+        // Generamos un ID único (CLAVE para la remoción)
+        // Usamos "_stat_" en lugar de "_trait_" para diferenciar en el ID.
+        String uniqueModifierId = context.getItemKey() + "_stat_" + stat.getId().getKey() + "_" + UUID.randomUUID().toString().substring(0, 6);
 
+        // --- 2. CREACIÓN Y APLICACIÓN DEL MODIFICADOR ---
+        // Lo creamos como PERMANENTE inicialmente
         StatModifier modifier = new StatModifier(
                 uniqueModifierId,
                 stat,
@@ -71,9 +75,29 @@ public class AddStatEffect extends BaseEffect {
                 auraOperation
         );
 
-        modifier.makeTemporary(durationTicks, true);
+        // Aplicamos el modificador
+        user.addStatModifier(modifier);
 
-        auraSkills.getUser(player.getUniqueId()).addStatModifier(modifier);
+
+        // 🚨 3. PROGRAMACIÓN MANUAL DE LA REMOCIÓN (EL FIX)
+        if (this.durationTicks > 0) {
+            final String modifierKey = uniqueModifierId; // Necesitamos el ID final para la lambda
+            final bw.development.facelessItems.FacelessItems pluginInstance = context.getPlugin();
+
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    // Solo removemos si el jugador sigue online
+                    if (player.isOnline()) {
+                        // Removemos el modificador de forma explícita por su clave
+                        auraSkills.getUser(player.getUniqueId()).removeStatModifier(modifierKey);
+                        // Mensaje de feedback opcional
+                        player.sendMessage("§e[AuraSkills] §7Tu bonus de estadística ha terminado.");
+                    }
+                }
+                // Programamos la remoción para después de la duración exacta en ticks
+            }.runTaskLater(pluginInstance, this.durationTicks);
+        }
     }
 
     @Override
