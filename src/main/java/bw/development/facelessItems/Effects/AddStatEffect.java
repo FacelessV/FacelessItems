@@ -91,8 +91,6 @@ public class AddStatEffect extends BaseEffect {
                     if (player.isOnline()) {
                         // Removemos el modificador de forma explícita por su clave
                         auraSkills.getUser(player.getUniqueId()).removeStatModifier(modifierKey);
-                        // Mensaje de feedback opcional
-                        player.sendMessage("§e[AuraSkills] §7Tu bonus de estadística ha terminado.");
                     }
                 }
                 // Programamos la remoción para después de la duración exacta en ticks

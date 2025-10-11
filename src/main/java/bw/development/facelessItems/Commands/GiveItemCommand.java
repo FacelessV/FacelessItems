@@ -9,8 +9,9 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-
+import org.bukkit.inventory.PlayerInventory; // Importación necesaria
 import java.util.Collections;
+import java.util.HashMap; // Importación necesaria
 
 public class GiveItemCommand implements CommandExecutor {
 
@@ -54,7 +55,7 @@ public class GiveItemCommand implements CommandExecutor {
         }
 
         // --- MANEJO DE CANTIDAD ---
-        int amount = 1; // Valor por defecto si no se proporciona args[2]
+        int amount = 1;
         if (args.length == 3) {
             try {
                 amount = Integer.parseInt(args[2]);
@@ -68,34 +69,54 @@ public class GiveItemCommand implements CommandExecutor {
             }
         }
 
-        // El método de la API para obtener el ítem con cantidad (que ya implementamos)
-        // Nota: Asumo que tienes un método similar en CustomItemManager que acepta cantidad.
         ItemStack itemToGive = customItem.getItemStack().clone();
         itemToGive.setAmount(amount);
-
         String displayName = itemToGive.getItemMeta().getDisplayName();
-        target.getInventory().addItem(itemToGive);
-
-        // --- MENSAJES DE CONFIRMACIÓN ---
-
         String amountPlaceholder = String.valueOf(amount);
 
+        // =========================================================================
+        // --- LÓGICA DE ENTREGA GARANTIZADA (INVENTARIO -> SUELO) ---
+        // =========================================================================
+
+        // 1. Intentar añadir el ítem. El mapa contiene los ítems que NO CABEN.
+        HashMap<Integer, ItemStack> remaining = target.getInventory().addItem(itemToGive);
+
+        // 2. Si el mapa NO está vacío, significa que el inventario estaba lleno y debemos soltar el excedente.
+        if (!remaining.isEmpty()) {
+
+            // Recorremos los ítems que no cupieron.
+            for (ItemStack itemLeft : remaining.values()) {
+                // Soltamos el ítem al suelo en la ubicación del jugador
+                target.getWorld().dropItemNaturally(target.getLocation(), itemLeft);
+            }
+
+            // Opcional: Mensaje de alerta al jugador que recibe el ítem
+            messageManager.sendMessage(target, "item_given_receiver_spilled",
+                    "{item_name}", displayName,
+                    "{amount}", String.valueOf(itemToGive.getAmount()));
+        }
+
+        // --- MENSAJES DE CONFIRMACIÓN AL SENDER (CONSOLA/ADMIN) ---
         if (playerSender != null) {
             messageManager.sendMessage(playerSender, "item_given_sender",
                     "{item_name}", displayName,
                     "{player}", target.getName(),
-                    "{amount}", amountPlaceholder); // Nuevo placeholder para cantidad
+                    "{amount}", amountPlaceholder);
         } else {
-            // Mensaje para la consola
             sender.sendMessage(messageManager.getMessage("item_given_sender",
                     "{item_name}", displayName,
                     "{player}", target.getName(),
                     "{amount}", amountPlaceholder));
         }
 
-        messageManager.sendMessage(target, "item_given_receiver",
-                "{item_name}", displayName,
-                "{amount}", amountPlaceholder); // Nuevo placeholder para cantidad
+        // Solo enviamos el mensaje de "recibido" al target si el inventario NO estaba lleno, o si se envió al suelo.
+        // Como la acción ya se manejó arriba (soltando al suelo), solo enviamos el mensaje simple de recepción
+        // si el inventario NO estaba lleno, o si el mapa 'remaining' está vacío (lo que implica que todo entró).
+        if (remaining.isEmpty()) {
+            messageManager.sendMessage(target, "item_given_receiver",
+                    "{item_name}", displayName,
+                    "{amount}", amountPlaceholder);
+        }
 
         return true;
     }

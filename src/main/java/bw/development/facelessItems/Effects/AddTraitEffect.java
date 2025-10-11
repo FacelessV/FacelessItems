@@ -86,7 +86,6 @@ public class AddTraitEffect extends BaseEffect {
                     if (player.isOnline()) {
                         // Removemos el modificador de forma explícita por su clave
                         auraSkills.getUser(player.getUniqueId()).removeTraitModifier(modifierKey);
-                        player.sendMessage("§e[AuraSkills] §7Tu bonus de rasgo ha terminado.");
                     }
                 }
                 // Programamos la remoción para después de la duración exacta en ticks

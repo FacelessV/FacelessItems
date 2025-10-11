@@ -315,6 +315,18 @@ public class CustomItemManager {
                     if (propertiesSection.getBoolean("unbreakable", false)) {
                         meta.setUnbreakable(true);
                     }
+
+                    if (propertiesSection.contains("max_stack_size")) {
+                        int maxStack = propertiesSection.getInt("max_stack_size");
+
+                        // El método setMaxStackSize requiere un valor entre 1 y 99.
+                        if (maxStack >= 1 && maxStack <= 99) {
+                            meta.setMaxStackSize(maxStack);
+                            plugin.getLogger().log(Level.FINE, "Aplicado MaxStackSize " + maxStack + " al item " + key);
+                        } else {
+                            plugin.getLogger().warning("Valor de max_stack_size inválido (" + maxStack + ") en item " + key + ". Debe estar entre 1 y 99.");
+                        }
+                    }
                 }
 
                 ConfigurationSection attrLoreConfig = plugin.getConfig().getConfigurationSection("lore-settings.attributes-lore");
